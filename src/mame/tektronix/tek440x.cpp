@@ -110,6 +110,7 @@ private:
 	void mapcntl_w(u8 data);
 	void sound_w(u8 data);
 	void diag_w(u8 data);
+	void led_w(u8 data);
 
 	void kb_rdata_w(int state);
 	void kb_tdata_w(int state);
@@ -126,11 +127,6 @@ private:
 	required_device<mc146818_device> m_rtc;
 	required_device<ncr5385_device> m_scsi;
 	required_device<input_merger_all_high_device> m_vint;
-
-// I am guessing we need some target scsi device that reads/writes a filesystem
-//	required_device<nscsi_harddisk_device> m_scsidrive;
-
-
 	required_region_ptr<u16> m_prom;
 	required_shared_ptr<u16> m_mainram;
 	required_shared_ptr<u16> m_vram;
@@ -143,6 +139,7 @@ private:
 	bool m_kb_tdata;
 	bool m_kb_rclamp;
 	bool m_kb_loop;
+	u8 m_leds;
 };
 
 /*************************************
@@ -266,6 +263,7 @@ u8 tek440x_state::mapcntl_r()
 
 void tek440x_state::mapcntl_w(u8 data)
 {
+	LOG("mapcntl_w %d\n", BIT(data, 5));
 	if (BIT(data, 5))
 		m_map_view.select(0);
 	else
@@ -277,6 +275,13 @@ void tek440x_state::sound_w(u8 data)
 {
 	m_snsnd->write(data);
 	m_boot = false;
+}
+
+void tek440x_state::led_w(u8 data)
+{
+
+	m_leds = data;
+	LOG("LED %c%c%c%c\n",m_leds & 8 ? '*' : '-',m_leds & 4 ? '*' : '-',m_leds & 2 ? '*' : '-',m_leds & 1 ? '*' : '-');
 }
 
 void tek440x_state::diag_w(u8 data)
@@ -391,7 +396,7 @@ INPUT_PORTS_END
 
 static void scsi_devices(device_slot_interface &device)
 {
-	device.option_add("scsi_harddisk", NSCSI_HARDDISK);
+	device.option_add("harddisk", NSCSI_HARDDISK);
 	device.option_add("tek_msu_fdc", TEK_MSU_FDC);
 }
 
@@ -450,7 +455,7 @@ void tek440x_state::tek4404(machine_config &config)
 	auto &scsi(NSCSI_BUS(config, "scsi"));
 	// hard disk is a Micropolis 1304 (https://www.micropolis.com/support/hard-drives/1304)
 	// with a Xebec 1401 SASI adapter inside the Mass Storage Unit
-	NSCSI_CONNECTOR(config, "scsi:0", scsi_devices, "scsi_harddisk");
+	NSCSI_CONNECTOR(config, "scsi:0", scsi_devices, "harddisk");
 	NSCSI_CONNECTOR(config, "scsi:1", scsi_devices, "tek_msu_fdc");
 	NSCSI_CONNECTOR(config, "scsi:2", scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:3", scsi_devices, nullptr);
