@@ -75,6 +75,7 @@
 #define LOG_GENERAL (1U << 0)
 #define LOG_MMU (1U << 1)
 #define LOG_FPU (1U << 2)
+#define LOG_SCSI (1U << 3)
 
 #define VERBOSE LOG_GENERAL
 #include "logmacro.h"
