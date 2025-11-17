@@ -1783,8 +1783,8 @@ m_printer->in_pb_callback().set_constant(0xb0);		// HACK:  vblank always checks 
 	NSCSI_CONNECTOR(config, "scsi:4", scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:5", scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:6", scsi_devices, nullptr);
-
-	NCR5385(config, m_scsi, 40_MHz_XTAL / 4);
+	// clock crystal p2.2-25
+	NCR5385(config, m_scsi).clock(3.6864_MHz_XTAL);
 	scsi.set_external_device(7, m_scsi);
 	m_scsi->irq().set_inputline(m_maincpu, M68K_IRQ_3);
 
