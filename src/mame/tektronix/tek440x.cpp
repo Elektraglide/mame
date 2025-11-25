@@ -77,11 +77,11 @@
 #define LOG_SCSI (1U << 3)
 #define LOG_IRQ (1U << 4)
 
-#define VERBOSE (LOG_GENERAL|LOG_IRQ)
+#define VERBOSE (LOG_GENERAL)
 #include "logmacro.h"
 
 // tek4404 MSU uses a 6502 that is slow to ACK
-unsigned constexpr TEK4404_ACK_DELAY = 20'000;
+unsigned constexpr TEK4404_ACK_DELAY = 30'000;
 
 // mapcntl bits
 constexpr int MAP_VM_ENABLE = 4;
