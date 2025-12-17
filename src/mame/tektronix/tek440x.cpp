@@ -93,8 +93,8 @@ constexpr int MAP_CPU_WR = 7;
 #define OFF8_TO_OFF16(A)	((A)>>1)
 #define OFF16_TO_OFF8(A)	((A)<<1)
 
-constexpr offs_t MAXRAM = 0x200000;	// +1MB
-//constexpr offs_t MAXRAM = 0x400000;	// +3MB
+//constexpr offs_t MAXRAM = 0x200000;	// +1MB
+constexpr offs_t MAXRAM = 0x400000;	// +3MB
 
 // have m_readXX / m_writeXX use MMU translation
 // OR
