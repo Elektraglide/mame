@@ -23,7 +23,10 @@ protected:
 
 	// experiment for slowing target device (based on 1.2Mbps)
 	virtual attotime scsi_data_byte_period() override { return attotime::from_nsec(820); }
-	virtual attotime scsi_data_command_delay() override { return attotime::from_nsec(20000); }
+	virtual attotime scsi_data_command_delay() override { return attotime::from_nsec(1800); }
+
+	virtual attotime scsi_bus_set_delay() override { return attotime::from_nsec(3600); }
+	virtual attotime scsi_bus_settle_delay() override { return attotime::from_nsec(30000); }
 
 	virtual void scsi_command() override;
 	virtual uint8_t scsi_get_data(int id, int pos) override;
