@@ -767,8 +767,8 @@ int ncr5385_device::state_step()
 				m_sbx = false;
 
 			// clear data and ACK
-			scsi_bus->data_w(scsi_refid, 0);
-			scsi_bus->ctrl_w(scsi_refid, 0, S_ACK);
+			m_scsi_bus->data_w(m_scsi_refid, 0);
+			m_scsi_bus->ctrl_w(m_scsi_refid, 0, S_ACK);
 
 			// REQUIRED delay for device to keep up
 			// See notes at start of this file
