@@ -539,7 +539,6 @@ public:
 		m_timer(*this, "timer"),
 		m_rtc(*this, "rtc"),
 		m_scsi(*this, "ncr5385"),
-		m_vint(*this, "vint"),
 		m_screen(*this, "screen"),
 		m_acia(*this, "acia"),
 		m_fpu(*this, "fpu"),
@@ -1700,12 +1699,15 @@ void tek440x_state::tek4404(machine_config &config)
 	NSCSI_CONNECTOR(config, "scsi:5", scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:6", scsi_devices, nullptr);
 	// clock crystal p2.2-25
-	NCR5385(config, m_scsi).clock(3.6864_MHz_XTAL).machine_config(
+	NCR5385(config, m_scsi, 3.6864_MHz_XTAL);
+#if 0
+	.machine_config(
 		[this](device_t *device)
 		{
 			ncr5385_device &adapter = downcast<ncr5385_device &>(*device);
 			adapter.set_ack_delay_ns(TEK4404_ACK_DELAY);
 		});
+#endif
 	scsi.set_external_device(7, m_scsi);
 	m_scsi->irq().set_inputline(m_maincpu, M68K_IRQ_3);
 
