@@ -1174,7 +1174,7 @@ u8 tek440x_state::videocntl_r()
 	if (m_screen->vblank())
 		ans |= 0x20;
 	else
-		ans |= 0x10;		// should be VAD.04
+		ans |= 0x10;		// should be VAD.04; this allows VIDEO_selftest to pass
 		
 	if (m_screen->hblank())
 		ans |= 0x40;
