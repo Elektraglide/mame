@@ -1399,7 +1399,7 @@ u16 tek440x_state::timer_r(offs_t offset)
 {
 	LOGMASKED(LOG_IRQ,"%10s: timer_r %08x pc(%08x)\n", machine().time().as_string(8), offset, m_maincpu->pc());
 
-	if (m_u244latch)
+	//if (m_u244latch)
 	{
 		LOGMASKED(LOG_IRQ,"timer_r: M68K_IRQ_1 clear\n");
 		m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
@@ -1415,7 +1415,7 @@ void tek440x_state::timer_w(offs_t offset, u16 data)
 	//LOG("timer_w %08x %04x pc(%08x)\n", OFF16_TO_OFF8(offset), data, m_maincpu->pc());
 	m_timer->write16(offset, data);
 
-	if (m_u244latch)
+	//if (m_u244latch)
 	{
 		LOGMASKED(LOG_IRQ,"timer_w: M68K_IRQ_1 clear\n");
 		m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
