@@ -1161,7 +1161,9 @@ u8 tek440x_state::videocntl_r()
 	// page 2.1-92
 	if (m_screen->vblank())
 		ans |= 0x20;
-
+	else
+		ans |= 0x10;		// should be VAD.04
+		
 	if (m_screen->hblank())
 		ans |= 0x40;
 		
