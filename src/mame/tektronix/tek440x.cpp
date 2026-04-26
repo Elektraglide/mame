@@ -1078,8 +1078,8 @@ if (0)
 	// NB bit 6 & 7 is not used
 	
 	// disable using latched state below
-	m_map_control &= 0xc0;
-	m_map_control |= m_latched_map_control;
+	//m_map_control &= 0xc0;
+	//m_map_control |= m_latched_map_control;
 	
 }
 
