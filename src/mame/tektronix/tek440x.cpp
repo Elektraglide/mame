@@ -1627,7 +1627,10 @@ static void scsi_devices(device_slot_interface &device)
 void tek440x_state::tek4404(machine_config &config)
 {
 	/* basic machine hardware */
-	M68010_TEKMMU(config, m_maincpu, 40_MHz_XTAL / 4); // MC68010L10
+//	M68010_TEKMMU(config, m_maincpu, 40_MHz_XTAL / 4); // MC68010L10
+// Use 20MHz CPU rather than using -speed 2 which breaks RTC, audio etc etc
+	M68010_TEKMMU(config, m_maincpu, 40_MHz_XTAL / 2); // MC68010L10
+	
 	m_maincpu->set_addrmap(AS_PROGRAM, &tek440x_state::logical_map);
 
 	ADDRESS_MAP_BANK(config, m_vm);
