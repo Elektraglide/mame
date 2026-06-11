@@ -716,6 +716,16 @@ void tek440x_state::machine_start()
 
 	// AB is this needed for external MMU?
 	m_maincpu->set_emmu_enable(true);
+
+	// AB we need to set special delays for ncr5385
+	//ncr5385_device *adapter = downcast<ncr5385_device *>(subdevice("scsi:0:harddisk"));
+	//adapter->set_ack_delay_ns(TEK4404_ACK_DELAY);
+	m_scsi->set_ack_delay_ns(TEK4404_ACK_DELAY);
+	
+	// AB driver still hangs if using just set_seek_timing()
+	//if (auto *s = dynamic_cast<nscsi_harddisk_device *>(subdevice("scsi:0:harddisk")))
+	//	s->set_seek_timing(3000, 85000, 205000, 3600, 1);
+
 }
 
 
