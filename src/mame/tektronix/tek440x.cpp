@@ -553,10 +553,7 @@ public:
 		m_mousex(*this, "mousex"),
 		m_mousey(*this, "mousey"),
 		m_mousebtn(*this, "mousebtn"),
-		m_led_1(*this, "led_1"),
-		m_led_2(*this, "led_2"),
-		m_led_4(*this, "led_4"),
-		m_led_8(*this, "led_8"),
+		m_leds(*this, "led%u", 0U),
 		m_led_disk(*this, "led_disk"),
 		m_boot(false),
 		m_map_control(0),
@@ -661,10 +658,7 @@ private:
 	required_ioport m_mousey;
 	required_ioport m_mousebtn;
 	
-	output_finder<> m_led_1;
-	output_finder<> m_led_2;
-	output_finder<> m_led_4;
-	output_finder<> m_led_8;
+	output_finder<4> m_leds;
 	output_finder<> m_led_disk;
 
 	int m_u244latch;
@@ -710,13 +704,13 @@ void tek440x_state::machine_start()
 	save_item(NAME(m_videocntl));
 	save_item(NAME(m_diag));
 	
-	m_led_1.resolve();
-	m_led_2.resolve();
-	m_led_4.resolve();
-	m_led_8.resolve();
-	
-	m_led_disk.resolve();
-	m_maincpu->space(AS_PROGRAM).install_write_tap(0x7be002, 0x7be003, "led_tap", [this](offs_t offset, u16 &data, u16 mem_mask) { m_led_disk = !(data & 0x18);});
+	m_maincpu->space(AS_PROGRAM).install_write_tap(0x7be002, 0x7be003, "led_tap", [this](offs_t offset, u16 &data, u16 mem_mask)
+		{ m_led_disk = !(data & 0x18);});
+
+	m_maincpu->space(AS_PROGRAM).install_write_tap(0x740000, 0x747fff, "leds_tap", [this](offs_t offset, u16 &data, u16 mem_mask)
+		{ 	LOG("LED %c%c%c%c\n",data & 8 ? '*' : '-',data & 4 ? '*' : '-',data & 2 ? '*' : '-',data & 1 ? '*' : '-');
+			m_leds[0] = BIT(data, 0); m_leds[1] = BIT(data, 1); m_leds[2] = BIT(data, 2); m_leds[3] = BIT(data, 3);
+		});
 
 	m_maincpu->linktoMMU(&m_map_control, &m_map[0]);
 
@@ -1218,18 +1212,6 @@ void tek440x_state::sound_w(u8 data)
 	m_boot = false;
 }
 
-void tek440x_state::led_w(u16 data)
-{
-
-	LOG("LED %c%c%c%c\n",data & 8 ? '*' : '-',data & 4 ? '*' : '-',data & 2 ? '*' : '-',data & 1 ? '*' : '-');
-
-	m_led_1 = BIT(data, 0);
-	m_led_2 = BIT(data, 1);
-	m_led_4 = BIT(data, 2);
-	m_led_8 = BIT(data, 3);
-
-}
-
 u8 tek440x_state::diag_r()
 {
 	return m_diag;
@@ -1529,7 +1511,7 @@ void tek440x_state::physical_map(address_map &map)
 	map(0x722000, 0x722fff).rw(FUNC(tek440x_state::recall_r), FUNC(tek440x_state::recall_w));
 	map(0x723000, 0x723fff).rw(FUNC(tek440x_state::store_r), FUNC(tek440x_state::store_w));
 	
-	map(0x740000, 0x747fff).rom().mirror(0x8000).region("bootrom", 0).w(FUNC(tek440x_state::led_w));
+	map(0x740000, 0x747fff).rom().mirror(0x8000).region("bootrom", 0);
 	map(0x760000, 0x760fff).ram().mirror(0xf000); // debug RAM
 
 	// 780000-79ffff processor board I/O
