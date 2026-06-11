@@ -33,16 +33,16 @@ Tektronix 4404 Artificial Intelligence System.
 			<bounds x="0" y="480" width="640" height="16" />
 		</element>
 
-		<element name="led_1" ref="led_round">
+		<element name="led0" ref="led_round">
 			<bounds x="46" y="484" width="8" height="8" />
 		</element>
-		<element name="led_2" ref="led_round">
+		<element name="led1" ref="led_round">
 			<bounds x="34" y="484" width="8" height="8" />
 		</element>
-		<element name="led_4" ref="led_round">
+		<element name="led2" ref="led_round">
 			<bounds x="22" y="484" width="8" height="8" />
 		</element>
-		<element name="led_8" ref="led_round">
+		<element name="led3" ref="led_round">
 			<bounds x="10" y="484" width="8" height="8" />
 		</element>
 		<element name="led_disk" ref="led_rect">
