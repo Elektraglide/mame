@@ -277,6 +277,11 @@ void tek440x_state::machine_start()
 			m_leds[0] = BIT(data, 0); m_leds[1] = BIT(data, 1); m_leds[2] = BIT(data, 2); m_leds[3] = BIT(data, 3);
 		});
 
+	// AB we need to set special delays for ncr5385
+	//ncr5385_device *adapter = downcast<ncr5385_device *>(subdevice("scsi:0:harddisk"));
+	//adapter->set_ack_delay_ns(TEK4404_ACK_DELAY);
+	m_scsi->set_ack_delay_ns(TEK4404_ACK_DELAY);
+	
 
 
 /*************************************
