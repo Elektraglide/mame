@@ -109,7 +109,7 @@ public:
 		m_kb_rdata(true),
 		m_kb_tdata(true),
 		m_kb_rclamp(false),
-		m_kb_loop(false)
+		m_kb_loop(false),
 		m_mouse(0),
 		m_mouse_bnts(0),
 		m_mouse_x(0),
@@ -133,7 +133,9 @@ private:
 	u8 mapcntl_r();
 	void mapcntl_w(u8 data);
 	void sound_w(u8 data);
+	u8 diag_r();
 	void diag_w(u8 data);
+	
 	int mouseupdate();
 	u8 mouse_r(offs_t offset);
 	void mouse_w(u8 data);
@@ -163,6 +165,9 @@ private:
 	u16 timer_r(offs_t offset);
 	void timer_w(offs_t offset, u16 data);
 
+	// need to handle loopback mode
+	u8 duart_r(offs_t offset);
+	void duart_w(offs_t offset, u8 data);
 
 	void printer_pc_w(u8 data);
 
@@ -214,6 +219,7 @@ private:
 	bool m_kb_loop;
 	u16 m_videoaddr;
 	u8 m_videocntl;
+	u8 m_diag;
 	u8 m_mouse,m_mouse_bnts,m_mouse_x,m_mouse_y,m_old_mouse_x,m_old_mouse_y;
 	u8 m_mouse_px,m_mouse_py,m_mouse_pc;
 	
@@ -234,7 +240,9 @@ void tek440x_state::machine_start()
 	save_item(NAME(m_kb_tdata));
 	save_item(NAME(m_kb_rclamp));
 	save_item(NAME(m_kb_loop));
-}
+	
+	save_item(NAME(m_videocntl));
+	save_item(NAME(m_diag));
 	
 	m_maincpu->space(AS_PROGRAM).install_write_tap(0x7be002, 0x7be003, "led_tap", [this](offs_t offset, u16 &data, u16 mem_mask)
 		{ m_led_disk = !(data & 0x18);});
@@ -511,12 +519,19 @@ void tek440x_state::sound_w(u8 data)
 	m_boot = false;
 }
 
+u8 tek440x_state::diag_r()
+{
+	return m_diag;
+}
+
 void tek440x_state::diag_w(u8 data)
 {
 	if (!m_kb_rclamp && m_kb_loop != BIT(data, 7))
 		m_keyboard->kdo_w(!BIT(data, 7) || m_kb_tdata);
 
 	m_kb_loop = BIT(data, 7);
+	m_diag = data;
+}
 
 // copied from stkbd.cpp
 int tek440x_state::mouseupdate()
@@ -697,6 +712,25 @@ void tek440x_state::timer_w(offs_t offset, u16 data)
 	}
 }
 
+u8 tek440x_state::duart_r(offs_t offset)
+{
+	return m_duart->read(offset);
+}
+
+void tek440x_state::duart_w(offs_t offset, u8 data)
+{
+	// Transmit Buffer?
+	if (offset == 3)
+	{
+		if (m_kb_loop)
+		{
+			m_duart->write(0x0, 0x80);
+		}
+	}
+
+	m_duart->write(offset, data);
+}
+
 uint8_t tek440x_state::nvram_r(offs_t offset)
 {
 	u8 data = m_novram->read(m_maincpu->space(0), offset);
@@ -799,12 +833,12 @@ void tek440x_state::physical_map(address_map &map)
 
 	// 7a0000-7bffff peripheral board I/O
 	// 7a0000-7affff: reserved
-	map(0x7b0000, 0x7b0000).w(FUNC(tek440x_state::diag_w));
+	map(0x7b0000, 0x7b0000).rw(FUNC(tek440x_state::diag_r),FUNC(tek440x_state::diag_w));
 	// 7b1000-7b1fff: diagnostic registers
 	// 7b2000-7b3fff: Centronics printer data
-	map(0x7b4000, 0x7b401f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0xff00);
 	map(0x7b2000, 0x7b3fff).rw(m_printer, FUNC(i8255_device::read), FUNC(i8255_device::write));
 	
+	map(0x7b4000, 0x7b401f).rw(FUNC(tek440x_state::duart_r), FUNC(tek440x_state::duart_w)).umask16(0xff00);
 	// 7b6000-7b7fff: Mouse
 	map(0x7b8000, 0x7b8003).mirror(0x100).rw("timer", FUNC(am9513_device::read16), FUNC(am9513_device::write16));
 	map(0x7b6000, 0x7b6fff).rw(FUNC(tek440x_state::mouse_r),FUNC(tek440x_state::mouse_w));
