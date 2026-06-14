@@ -1559,6 +1559,11 @@ void tek440x_state::physical_map(address_map &map)
 
 			// TODO: bit 7 -> SCSI bus reset
 			LOG("scsi bus reset %d\n", BIT(data, 7));
+			if (BIT(data, 7))
+			{
+				//m_scsi->cmd_w(0);
+			}
+			
 		}, "scsi_addr"); // 7bc000-7bdfff: SCSI bus address registers
 	map(0x7be000, 0x7be01f).m(m_scsi, FUNC(ncr5385_device::map)).umask16(0xff00); //.mirror(0x1fe0) .cswidth(16);
 
@@ -1700,8 +1705,8 @@ void tek440x_state::tek4404(machine_config &config)
 	NSCSI_CONNECTOR(config, "scsi:4", scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:5", scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:6", scsi_devices, nullptr);
-
-	NCR5385(config, m_scsi, 40_MHz_XTAL / 4);
+	// clock crystal p2.2-25
+	NCR5385(config, m_scsi, 3.6864_MHz_XTAL);
 	scsi.set_external_device(7, m_scsi);
 	m_scsi->irq().set_inputline(m_maincpu, M68K_IRQ_3);
 
