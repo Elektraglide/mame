@@ -54,6 +54,7 @@
 #include "machine/am79c90.h"
 #include "machine/am9513.h"
 #include "machine/bankdev.h"
+#include "machine/i8255.h"
 #include "machine/input_merger.h"
 #include "machine/mc146818.h"
 #include "machine/mc68681.h"
@@ -90,6 +91,7 @@ public:
 		m_fpu(*this, "fpu"),
 		m_lance(*this, "lance"),
 		m_novram(*this, "novram"),
+		m_printer(*this, "printer"),
 		m_mainram(*this, "mainram"),
 		m_vram(*this, "vram"),
 		m_map(*this, "map", 0x1000, ENDIANNESS_BIG),
@@ -141,6 +143,8 @@ private:
 	void timer_w(offs_t offset, u16 data);
 
 
+	void printer_pc_w(u8 data);
+
 	void kb_rdata_w(int state);
 	void kb_tdata_w(int state);
 	void kb_rclamp_w(int state);
@@ -161,6 +165,7 @@ private:
 	required_device<ns32081_device> m_fpu;
 	required_device<am7990_device> m_lance;
 	required_device<x2210_device> m_novram;
+	required_device<i8255_device> m_printer;
 
 	required_region_ptr<u16> m_prom;
 	required_shared_ptr<u16> m_mainram;
@@ -175,6 +180,7 @@ private:
 	u8 m_map_control;
 	u8 m_vint_enable;				// VIntEn also used to hold U4438 in reset state
 	
+	u8 m_printer_pc;
 	bool m_kb_rdata;
 	bool m_kb_tdata;
 	bool m_kb_rclamp;
@@ -461,6 +467,16 @@ void tek440x_state::diag_w(u8 data)
 		m_keyboard->kdo_w(!BIT(data, 7) || m_kb_tdata);
 
 	m_kb_loop = BIT(data, 7);
+
+void tek440x_state::printer_pc_w(u8 data)
+{
+
+	LOG("printer_pc_w(%02x)\n", data);
+
+	if (!m_kb_rclamp && BIT(m_printer_pc, 2) != BIT(data, 2))
+		m_keyboard->kdo_w(!BIT(data, 2) || m_kb_tdata);
+
+	m_printer_pc = data;
 }
 
 void tek440x_state::kb_rdata_w(int state)
@@ -647,6 +663,8 @@ void tek440x_state::physical_map(address_map &map)
 	// 7b1000-7b1fff: diagnostic registers
 	// 7b2000-7b3fff: Centronics printer data
 	map(0x7b4000, 0x7b401f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0xff00);
+	map(0x7b2000, 0x7b3fff).rw(m_printer, FUNC(i8255_device::read), FUNC(i8255_device::write));
+	
 	// 7b6000-7b7fff: Mouse
 	map(0x7b8000, 0x7b8003).mirror(0x100).rw("timer", FUNC(am9513_device::read16), FUNC(am9513_device::write16));
 
@@ -733,6 +751,12 @@ void tek440x_state::tek4404(machine_config &config)
 	m_acia->set_xtal(1.8432_MHz_XTAL);
 	m_acia->txd_handler().set("rs232", FUNC(rs232_port_device::write_txd));
 	m_acia->irq_handler().set_inputline(m_maincpu, M68K_IRQ_7);
+
+	I8255A(config, m_printer);
+	m_printer->in_pb_callback().set_constant(0x30);
+	// HACK:  vblank always checks if printer status < 0
+	m_printer->in_pb_callback().set_constant(0xb0);
+	m_printer->out_pc_callback().set(FUNC(tek440x_state::printer_pc_w));
 
 	NS32081(config, m_fpu, 20_MHz_XTAL / 2);
 	m_fpu->out_spc().set(FUNC(tek440x_state::fpu_finished));
