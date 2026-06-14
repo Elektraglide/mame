@@ -155,6 +155,9 @@ private:
 
 	void palette(palette_device &palette) const;
 
+	// cache SoundRdy
+	void ready_sound(int state);
+	
 	// need to handle bit 8 reset
 	void timer_irq(int state);
 	u16 timer_r(offs_t offset);
@@ -214,6 +217,7 @@ private:
 	u8 m_mouse,m_mouse_bnts,m_mouse_x,m_mouse_y,m_old_mouse_x,m_old_mouse_y;
 	u8 m_mouse_px,m_mouse_py,m_mouse_pc;
 	
+	u8 m_soundrdy;
 };
 
 /*************************************
@@ -303,6 +307,13 @@ u32 tek440x_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, co
 	}
 
 	return 0;
+}
+
+// this is masked into VideoControl reads
+void tek440x_state::ready_sound(int state)
+{
+	LOGMASKED(LOG_IRQ, "ready_sound(%d)\n", state);
+	m_soundrdy = state ? 0x08 : 0x00;
 }
 
 
@@ -493,6 +504,9 @@ void tek440x_state::videocntl_w(u8 data)
 
 void tek440x_state::sound_w(u8 data)
 {
+	if (m_boot)
+		LOG("BOOT PROM disabled\n");
+	
 	m_snsnd->write(data);
 	m_boot = false;
 }
@@ -961,6 +975,7 @@ void tek440x_state::tek4404(machine_config &config)
 	SPEAKER(config, "mono").front_center();
 
 	SN76496(config, m_snsnd, 25.2_MHz_XTAL / 8).add_route(ALL_OUTPUTS, "mono", 0.80);
+	m_snsnd->ready_cb().set(FUNC(tek440x_state::ready_sound));
 }
 
 
