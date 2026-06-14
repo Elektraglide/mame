@@ -88,6 +88,7 @@ public:
 		m_scsi(*this, "ncr5385"),
 		m_prom(*this, "maincpu"),
 		m_screen(*this, "screen"),
+		m_acia(*this, "acia"),
 		m_fpu(*this, "fpu"),
 		m_lance(*this, "lance"),
 		m_novram(*this, "novram"),
