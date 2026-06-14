@@ -84,8 +84,8 @@ public:
 		m_snsnd(*this, "snsnd"),
 		m_rtc(*this, "rtc"),
 		m_scsi(*this, "ncr5385"),
-		m_vint(*this, "vint"),
 		m_prom(*this, "maincpu"),
+		m_screen(*this, "screen"),
 		m_fpu(*this, "fpu"),
 		m_lance(*this, "lance"),
 		m_novram(*this, "novram"),
@@ -120,6 +120,10 @@ private:
 	u16 fpu_r(offs_t offset);
 	void fpu_w(offs_t offset, u16 data);
 	
+	u16 videoaddr_r(offs_t offset);
+	void videoaddr_w(offs_t offset, u16 data);
+	u8 videocntl_r();
+	void videocntl_w(u8 data);
 
 	uint8_t nvram_r(offs_t offset);
 	void nvram_w(offs_t offset, u8 data);
@@ -127,6 +131,8 @@ private:
 	void recall_w(uint8_t data);
 	uint8_t store_r();
 	void store_w(uint8_t data);
+
+	void palette(palette_device &palette) const;
 
 
 	void kb_rdata_w(int state);
@@ -143,7 +149,7 @@ private:
 	required_device<sn76496_device> m_snsnd;
 	required_device<mc146818_device> m_rtc;
 	required_device<ncr5385_device> m_scsi;
-	required_device<input_merger_all_high_device> m_vint;
+	required_device<screen_device> m_screen;
 	required_device<ns32081_device> m_fpu;
 	required_device<am7990_device> m_lance;
 	required_device<x2210_device> m_novram;
@@ -156,10 +162,14 @@ private:
 
 	bool m_boot;
 	u8 m_map_control;
+	u8 m_vint_enable;				// VIntEn also used to hold U4438 in reset state
+	
 	bool m_kb_rdata;
 	bool m_kb_tdata;
 	bool m_kb_rclamp;
 	bool m_kb_loop;
+	u16 m_videoaddr;
+	u8 m_videocntl;
 };
 
 /*************************************
@@ -192,10 +202,9 @@ void tek440x_state::machine_reset()
 	diag_w(0);
 	m_keyboard->kdo_w(1);
 	mapcntl_w(0);
-	m_vint->in_w<1>(0);
-}
+	videocntl_w(0);
 
-
+	m_vint_enable = 0;
 	
 	m_novram->recall(ASSERT_LINE);
 	m_novram->recall(CLEAR_LINE);
@@ -208,17 +217,33 @@ void tek440x_state::machine_reset()
 
 u32 tek440x_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
+	if (!BIT(m_videocntl, 5))
+	{
+		// screen off
+		bitmap.fill((uint16_t)0xffff, cliprect);
+		return 0;
+	}
+
+	u32 invert = BIT(m_videocntl, 4) ? 0 : -1;
+	int pan = (m_videocntl & 15) ^ 15;
+
+	u16 woffset = (m_videoaddr - (0xffe9));  // why 0xffe9 is TL..OS uses same magic number
+	
+	//LOG("screen_update: 0x%04x\n", woffset);
 	for (int y = 0; y < 480; y++)
 	{
+	
 		u16 *const line = &bitmap.pix(y);
-		u16 const *video_ram = &m_vram[y * 64];
+		u16 const *video_ram = &m_vram[y * 64 + woffset];
 
 		for (int x = 0; x < 640; x += 16)
 		{
 			u16 const word = *(video_ram++);
+			u16 const word2 = *(video_ram);
+			u32 dword = ((word << 16) | word2) ^ invert;
 			for (int b = 0; b < 16; b++)
 			{
-				line[x + b] = BIT(word, 15 - b);
+				line[x + b] = BIT(dword, 31 - pan - b);
 			}
 		}
 	}
@@ -357,9 +382,59 @@ u16 tek440x_state::fpu_r(offs_t offset)
 	return result;
 }
 
+u16 tek440x_state::videoaddr_r(offs_t offset)
+{
+	//LOG("videoaddr_r %08x\n", offset);
+	return m_videoaddr;
+}
+
+void tek440x_state::videoaddr_w(offs_t offset, u16 data)
+{
+	//LOG("videoaddr_w %08x <= %04x\n", offset, data);
+	m_videoaddr = data;
+}
+
+u8 tek440x_state::videocntl_r()
+{
+	int ans = m_videocntl;
+
+	// page 2.1-92
+	if (m_screen->vblank())
+		ans |= 0x20;
 	else
-		m_map_view.disable();
-	m_map_control = data & 0x1f;
+		ans |= 0x10;		// should be VAD.04; this allows VIDEO_selftest to pass
+		
+	if (m_screen->hblank())
+		ans |= 0x40;
+		
+	// SoundRdy
+	ans |= m_soundrdy;
+		
+	return ans;
+}
+
+void tek440x_state::videocntl_w(u8 data)
+{
+
+#if 0
+	if (m_videocntl != data)
+	{
+		LOG("m_videocntl %02x\n", data);
+		LOG("m_videocntl VBenable   %2d\n", BIT(data, 6));
+		LOG("m_videocntl ScreenOn   %2d\n", BIT(data, 5));
+		LOG("m_videocntl ScreenInv  %2d\n", BIT(data, 4));
+		LOG("m_videocntl ScreenPan  %2d\n", data & 15);
+	}
+#endif
+
+	m_vint_enable = BIT(data, 6);
+	if (!m_vint_enable)
+	{
+		// VIntEn resets U4438 pulling VSyncInt high
+		m_maincpu->set_input_line(M68K_IRQ_6, CLEAR_LINE);
+	}
+	
+	m_videocntl = data;
 }
 
 void tek440x_state::sound_w(u8 data)
@@ -463,6 +538,14 @@ void tek440x_state::store_w(uint8_t data)
 	m_novram->store(1);
 	m_novram->store(0);
 }
+
+void tek440x_state::palette(palette_device &palette) const
+{
+	palette.set_pen_color(0, rgb_t(0xec, 0xf4, 0xff));   // 2 color framebuffer
+	palette.set_pen_color(1, rgb_t(0x00, 0x00, 0x00));
+}
+
+
 void tek440x_state::logical_map(address_map &map)
 {
 	map(0x000000, 0x7fffff).rw(FUNC(tek440x_state::memory_r), FUNC(tek440x_state::memory_w));
@@ -492,12 +575,9 @@ void tek440x_state::physical_map(address_map &map)
 	// 780000-79ffff processor board I/O
 	map(0x780000, 0x780000).rw(FUNC(tek440x_state::mapcntl_r), FUNC(tek440x_state::mapcntl_w));
 	// 782000-783fff: video address registers
+	map(0x782000, 0x782003).rw(FUNC(tek440x_state::videoaddr_r),FUNC(tek440x_state::videoaddr_w));
 	// 784000-785fff: video control registers
-	map(0x784000, 0x784000).lw8(
-		[this](u8 data)
-		{
-			m_vint->in_w<0>(BIT(data, 6));
-		}, "vcbpr_w");
+	map(0x784000, 0x784000).rw(FUNC(tek440x_state::videocntl_r),FUNC(tek440x_state::videocntl_w));
 	// 786000-787fff: spare
 	map(0x788000, 0x788000).w(FUNC(tek440x_state::sound_w));
 	// 78a000-78bfff: NS32081 FPU
@@ -570,22 +650,26 @@ void tek440x_state::tek4404(machine_config &config)
 	m_vm->set_addr_width(23);
 	m_vm->set_endianness(ENDIANNESS_BIG);
 
-	INPUT_MERGER_ALL_HIGH(config, m_vint);
-	m_vint->output_handler().set_inputline(m_maincpu, M68K_IRQ_6);
-
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
-	screen.set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
-	screen.set_raw(25.2_MHz_XTAL, 800, 0, 640, 525, 0, 480); // 31.5 kHz horizontal (guessed), 60 Hz vertical
-	screen.set_screen_update(FUNC(tek440x_state::screen_update));
-	screen.set_palette("palette");
-	screen.screen_vblank().set(m_vint, FUNC(input_merger_all_high_device::in_w<1>));
-	PALETTE(config, "palette", palette_device::MONOCHROME);
-
 	mos6551_device &aica(MOS6551(config, "aica", 40_MHz_XTAL / 4 / 10));
 	aica.set_xtal(1.8432_MHz_XTAL);
 	aica.txd_handler().set("rs232", FUNC(rs232_port_device::write_txd));
 	aica.irq_handler().set_inputline(m_maincpu, M68K_IRQ_7);
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
+	m_screen->set_raw(25.2_MHz_XTAL, 800, 0, 640, 525, 0, 480); // 31.5 kHz horizontal (guessed), 60 Hz vertical
+	m_screen->set_screen_update(FUNC(tek440x_state::screen_update));
+	m_screen->set_palette("palette");
+	m_screen->screen_vblank().set([this](int state)
+    {
+		LOGMASKED(LOG_IRQ,"%10s: vblank(%d) vint(%d)\n", machine().time().as_string(8), state,m_vint_enable);
+		if (state && m_vint_enable)
+		{
+			m_maincpu->set_input_line(M68K_IRQ_6, ASSERT_LINE);
+		}
+    });
+	PALETTE(config, "palette", FUNC(tek440x_state::palette),2);
+	
 	NS32081(config, m_fpu, 20_MHz_XTAL / 2);
 	m_fpu->out_spc().set(FUNC(tek440x_state::fpu_finished));
 
