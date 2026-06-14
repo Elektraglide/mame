@@ -217,6 +217,9 @@ private:
 	bool m_kb_tdata;
 	bool m_kb_rclamp;
 	bool m_kb_loop;
+
+	int m_fpu_finished;
+
 	u16 m_videoaddr;
 	u8 m_videocntl;
 	u8 m_diag;
