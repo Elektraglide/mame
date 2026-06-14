@@ -10,6 +10,7 @@
         * 68010 (4404) or 68020 (4405) with custom MMU
         * Intelligent floppy subsystem with 6502 driving a uPD765 controller
         * NS32081 FPU
+        * AMD LANCE Ethernet controller
         * 6551 debug console AICA
         * SN76496 PSG for sound
         * MC146818 RTC
@@ -50,6 +51,7 @@
 #include "bus/nscsi/hd.h"
 #include "bus/rs232/rs232.h"
 #include "cpu/m68000/m68010.h"
+#include "machine/am79c90.h"
 #include "machine/am9513.h"
 #include "machine/bankdev.h"
 #include "machine/input_merger.h"
@@ -85,6 +87,7 @@ public:
 		m_vint(*this, "vint"),
 		m_prom(*this, "maincpu"),
 		m_fpu(*this, "fpu"),
+		m_lance(*this, "lance"),
 		m_novram(*this, "novram"),
 		m_mainram(*this, "mainram"),
 		m_vram(*this, "vram"),
@@ -142,6 +145,7 @@ private:
 	required_device<ncr5385_device> m_scsi;
 	required_device<input_merger_all_high_device> m_vint;
 	required_device<ns32081_device> m_fpu;
+	required_device<am7990_device> m_lance;
 	required_device<x2210_device> m_novram;
 
 	required_region_ptr<u16> m_prom;
@@ -474,6 +478,9 @@ void tek440x_state::physical_map(address_map &map)
 	// 700000-71ffff spare 0
 	// 720000-73ffff spare 1
 	map(0x740000, 0x747fff).rom().mirror(0x8000).region("maincpu", 0);
+	// 720000-720fff spare 1 (ethernet)
+	map(0x720000, 0x720007).rw(m_lance, FUNC(am79c90_device::regs_r), FUNC(am79c90_device::regs_w));
+
 	// 721000-72107f net ram
 	// 722000-721fff nvram nybbles
 	map(0x721000, 0x7210ff).rw(FUNC(tek440x_state::nvram_r), FUNC(tek440x_state::nvram_w));
@@ -581,6 +588,21 @@ void tek440x_state::tek4404(machine_config &config)
 	aica.irq_handler().set_inputline(m_maincpu, M68K_IRQ_7);
 	NS32081(config, m_fpu, 20_MHz_XTAL / 2);
 	m_fpu->out_spc().set(FUNC(tek440x_state::fpu_finished));
+
+	// ethernet
+	AM7990(config, m_lance, 40_MHz_XTAL / 4);
+	m_lance->intr_out().set_inputline(m_maincpu, M68K_IRQ_2).invert();
+	
+	
+	m_lance->dma_in().set([this](offs_t offset) {
+		u16 data = m_vm->read16(OFF8_TO_OFF16(offset));
+		//LOG("dma_in 0x%08x => %04x\n",offset,data);
+		return data;
+	});
+	m_lance->dma_out().set([this](offs_t offset, u16 data, u16 mem_mask) {
+		//LOG("dma_out 0x%08x <= %04x\n",offset, data);
+		return m_vm->write16(OFF8_TO_OFF16(offset),data, mem_mask);
+	});
 
 
 	MC68681(config, m_duart, 14.7456_MHz_XTAL / 4);
