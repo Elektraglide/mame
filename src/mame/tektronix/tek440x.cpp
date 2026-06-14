@@ -88,13 +88,13 @@ public:
 		m_timer(*this, "timer"),
 		m_rtc(*this, "rtc"),
 		m_scsi(*this, "ncr5385"),
-		m_prom(*this, "maincpu"),
 		m_screen(*this, "screen"),
 		m_acia(*this, "acia"),
 		m_fpu(*this, "fpu"),
 		m_lance(*this, "lance"),
 		m_novram(*this, "novram"),
 		m_printer(*this, "printer"),
+		m_prom(*this, "bootrom"),
 		m_mainram(*this, "mainram"),
 		m_vram(*this, "vram"),
 		m_map(*this, "map", 0x1000, ENDIANNESS_BIG),
@@ -809,8 +809,6 @@ void tek440x_state::physical_map(address_map &map)
 	map(0x600000, 0x61ffff).ram().share("vram");
 
 	// 700000-71ffff spare 0
-	// 720000-73ffff spare 1
-	map(0x740000, 0x747fff).rom().mirror(0x8000).region("maincpu", 0);
 	// 720000-720fff spare 1 (ethernet)
 	map(0x720000, 0x720007).rw(m_lance, FUNC(am79c90_device::regs_r), FUNC(am79c90_device::regs_w));
 
@@ -820,6 +818,7 @@ void tek440x_state::physical_map(address_map &map)
 	map(0x722000, 0x722fff).rw(FUNC(tek440x_state::recall_r), FUNC(tek440x_state::recall_w));
 	map(0x723000, 0x723fff).rw(FUNC(tek440x_state::store_r), FUNC(tek440x_state::store_w));
 	
+	map(0x740000, 0x747fff).rom().mirror(0x8000).region("bootrom", 0);
 	map(0x760000, 0x760fff).ram().mirror(0xf000); // debug RAM
 
 	// 780000-79ffff processor board I/O
