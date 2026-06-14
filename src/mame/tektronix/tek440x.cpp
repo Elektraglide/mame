@@ -96,12 +96,22 @@ public:
 		m_vram(*this, "vram"),
 		m_map(*this, "map", 0x1000, ENDIANNESS_BIG),
 		m_map_view(*this, "map"),
+		m_mousex(*this, "mousex"),
+		m_mousey(*this, "mousey"),
+		m_mousebtn(*this, "mousebtn"),
 		m_boot(false),
 		m_map_control(0),
 		m_kb_rdata(true),
 		m_kb_tdata(true),
 		m_kb_rclamp(false),
 		m_kb_loop(false)
+		m_mouse(0),
+		m_mouse_bnts(0),
+		m_mouse_x(0),
+		m_mouse_y(0),
+		m_mouse_px(PHASE_STATIC),
+		m_mouse_py(PHASE_STATIC),
+		m_mouse_pc(0)
 	{ }
 
 	void tek4404(machine_config &config);
@@ -119,6 +129,9 @@ private:
 	void mapcntl_w(u8 data);
 	void sound_w(u8 data);
 	void diag_w(u8 data);
+	int mouseupdate();
+	u8 mouse_r(offs_t offset);
+	void mouse_w(u8 data);
 	void fpu_finished(int v);
 	u16 fpu_r(offs_t offset);
 	void fpu_w(offs_t offset, u16 data);
@@ -173,6 +186,10 @@ private:
 	memory_share_creator<u16> m_map;
 	memory_view m_map_view;
 
+	required_ioport m_mousex;
+	required_ioport m_mousey;
+	required_ioport m_mousebtn;
+	
 
 	int m_u244latch;
 	
@@ -187,6 +204,9 @@ private:
 	bool m_kb_loop;
 	u16 m_videoaddr;
 	u8 m_videocntl;
+	u8 m_mouse,m_mouse_bnts,m_mouse_x,m_mouse_y,m_old_mouse_x,m_old_mouse_y;
+	u8 m_mouse_px,m_mouse_py,m_mouse_pc;
+	
 };
 
 /*************************************
@@ -468,6 +488,95 @@ void tek440x_state::diag_w(u8 data)
 
 	m_kb_loop = BIT(data, 7);
 
+// copied from stkbd.cpp
+int tek440x_state::mouseupdate()
+{
+const int mouse_xya[3][4] = { { 0, 0, 0, 0 }, { 1, 1, 0, 0 }, { 0, 1, 1, 0 } };
+const int mouse_xyb[3][4] = { { 0, 0, 0, 0 }, { 0, 1, 1, 0 }, { 1, 1, 0, 0 } };
+
+	uint8_t x = m_mousex->read();
+	uint8_t y = m_mousey->read();
+	
+	if(m_mouse_pc == 0)
+	{
+		if(x == m_mouse_x)
+			m_mouse_px = PHASE_STATIC;
+
+		else if((x > m_mouse_x) || (x == 0 && m_mouse_x == 0xff))
+			m_mouse_px = PHASE_POSITIVE;
+
+		else if((x < m_mouse_x) || (x == 0xff && m_mouse_x == 0))
+			m_mouse_px = PHASE_NEGATIVE;
+
+		if(y == m_mouse_y)
+			m_mouse_py = PHASE_STATIC;
+
+		else if((y > m_mouse_y) || (y == 0 && m_mouse_y == 0xff))
+			m_mouse_py = PHASE_POSITIVE;
+
+		else if((y < m_mouse_y) || (y == 0xff && m_mouse_y == 0))
+			m_mouse_py = PHASE_NEGATIVE;
+
+		m_mouse_x = x;
+		m_mouse_y = y;
+	}
+
+	m_mouse <<= 4;
+	m_mouse &= ~15;
+
+	m_mouse |= mouse_xyb[m_mouse_px][m_mouse_pc];      // XB
+	m_mouse |= mouse_xya[m_mouse_px][m_mouse_pc] << 1; // XA
+	m_mouse |= mouse_xyb[m_mouse_py][m_mouse_pc] << 2; // YA
+	m_mouse |= mouse_xya[m_mouse_py][m_mouse_pc] << 3; // YB
+
+	m_mouse_pc++;
+	m_mouse_pc &= 0x03;
+	
+	return m_mouse;
+}
+
+u8 tek440x_state::mouse_r(offs_t offset)
+{
+	u8 ans = 0;
+	
+	switch(offset)
+	{
+		case 0:
+			ans = ~(m_old_mouse_x - m_mouse_x);
+			m_old_mouse_x = m_mouse_x;
+			break;
+		case 2:
+			ans = ~(m_old_mouse_y - m_mouse_y);
+			m_old_mouse_y = m_mouse_y;
+			ans ^= (m_diag & 15);
+			
+			break;
+		case 4:
+			m_mouse_bnts <<= 3;
+			m_mouse_bnts |=  m_mousebtn->read() & 7;		// selftest xor diag register with it
+			ans = m_mouse_bnts & 0x1f;
+			ans ^= (m_diag & 15) << 3;
+			ans |= 0x80;										// VCC from calender(?)
+			
+			break;
+		case 6:
+			mouseupdate();
+			break;
+
+		default:
+			m_old_mouse_x = m_old_mouse_y = 0;
+			break;
+	}
+
+	return ans;
+}
+
+void tek440x_state::mouse_w(u8 data)
+{
+	m_mouse = data;
+	LOG("mouse select(%x)\n", m_mouse);
+}
+
 void tek440x_state::printer_pc_w(u8 data)
 {
 
@@ -478,6 +587,7 @@ void tek440x_state::printer_pc_w(u8 data)
 
 	m_printer_pc = data;
 }
+
 
 void tek440x_state::kb_rdata_w(int state)
 {
@@ -667,6 +777,7 @@ void tek440x_state::physical_map(address_map &map)
 	
 	// 7b6000-7b7fff: Mouse
 	map(0x7b8000, 0x7b8003).mirror(0x100).rw("timer", FUNC(am9513_device::read16), FUNC(am9513_device::write16));
+	map(0x7b6000, 0x7b6fff).rw(FUNC(tek440x_state::mouse_r),FUNC(tek440x_state::mouse_w));
 
 	map(0x7b8000, 0x7b8003).rw(m_timer, FUNC(am9513_device::read16), FUNC(am9513_device::write16));
 	map(0x7b8100, 0x7b8103).rw(FUNC(tek440x_state::timer_r), FUNC(tek440x_state::timer_w));
@@ -696,6 +807,19 @@ void tek440x_state::physical_map(address_map &map)
  *************************************/
 
 static INPUT_PORTS_START( tek4404 )
+	PORT_START("mousex")
+	PORT_BIT( 0x00ff, 0, IPT_MOUSE_X ) PORT_SENSITIVITY(100) PORT_KEYDELTA(5) PORT_MINMAX(0, 255) PORT_PLAYER(1)
+
+	PORT_START("mousey")
+	PORT_BIT( 0x00ff, 0, IPT_MOUSE_Y ) PORT_SENSITIVITY(100) PORT_KEYDELTA(5) PORT_MINMAX(0, 255) PORT_PLAYER(1)
+
+	PORT_START("mousebtn")
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Mouse Button 1") PORT_CODE(MOUSECODE_BUTTON1)		// left
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_NAME("Mouse Button 2") PORT_CODE(MOUSECODE_BUTTON2)		// right
+	// FIXME: why does this not work?
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_NAME("Mouse Button 3") PORT_CODE(MOUSECODE_BUTTON3)		// middle
+
+
 INPUT_PORTS_END
 
 /*************************************
