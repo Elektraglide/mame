@@ -592,7 +592,6 @@ private:
 	int mouseupdate();
 	u8 mouse_r(offs_t offset);
 	void mouse_w(u8 data);
-	void led_w(u16 data);
 
 	void fpu_finished(int v);
 	u16 fpu_r(offs_t offset);
@@ -1699,7 +1698,7 @@ void tek440x_state::tek4404(machine_config &config)
 
 	auto &scsi(NSCSI_BUS(config, "scsi"));
 	// hard disk is a Micropolis 1304 (https://www.micropolis.com/support/hard-drives/1304)
-	// AB: Not sure this is correct:  with a Xebec 1401 SASI adapter inside the Mass Storage Unit
+	// with an Adaptec 4000 chipset inside the Mass Storage Unit
 	NSCSI_CONNECTOR(config, "scsi:0", scsi_devices, "harddisk");
 	NSCSI_CONNECTOR(config, "scsi:1", scsi_devices, "tek_msu_fdc");
 	NSCSI_CONNECTOR(config, "scsi:2", scsi_devices, nullptr);
@@ -1709,14 +1708,6 @@ void tek440x_state::tek4404(machine_config &config)
 	NSCSI_CONNECTOR(config, "scsi:6", scsi_devices, nullptr);
 	// clock crystal p2.2-25
 	NCR5385(config, m_scsi, 3.6864_MHz_XTAL);
-#if 0
-	.machine_config(
-		[this](device_t *device)
-		{
-			ncr5385_device &adapter = downcast<ncr5385_device &>(*device);
-			adapter.set_ack_delay_ns(TEK4404_ACK_DELAY);
-		});
-#endif
 	scsi.set_external_device(7, m_scsi);
 	m_scsi->irq().set_inputline(m_maincpu, M68K_IRQ_3);
 
