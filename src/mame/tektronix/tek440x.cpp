@@ -202,7 +202,7 @@ class m68010_tekmmu_device : public m68010_device
 
 		// NB bit 6 & 7 is not used
 		
-		// disable using latched state for now
+		// disable using latched state for now by setting it here
 		//m_map_control = data & 0x3f;
 		
 	}
@@ -599,11 +599,11 @@ private:
 	u8 videocntl_r();
 	void videocntl_w(u8 data);
 
-	uint8_t nvram_r(offs_t offset);
+	u8 nvram_r(offs_t offset);
 	void nvram_w(offs_t offset, u8 data);
-	uint8_t recall_r();
+	u8 recall_r();
 	void recall_w(uint8_t data);
-	uint8_t store_r();
+	u8 store_r();
 	void store_w(uint8_t data);
 
 	void palette(palette_device &palette) const;
@@ -657,7 +657,7 @@ private:
 	output_finder<4> m_leds;
 	output_finder<> m_led_disk;
 
-	int m_u244latch;
+	bool m_u244latch;
 	
 	bool m_boot;
 	u8 m_map_control;
@@ -670,7 +670,7 @@ private:
 	bool m_kb_rclamp;
 	bool m_kb_loop;
 
-	int m_fpu_finished;
+	bool m_fpu_finished;
 
 	u16 m_videoaddr;
 	u8 m_videocntl;
@@ -726,7 +726,7 @@ void tek440x_state::machine_reset()
 
 	m_boot = true;
 	diag_w(0);
-	m_u244latch = 0;
+	m_u244latch = false;
 	m_led_disk = 1;
 	m_keyboard->kdo_w(1);
 	mapcntl_w(0);
@@ -1080,7 +1080,7 @@ void tek440x_state::fpu_finished(int val)
 	if (val == 0)
 	{
 		LOGMASKED(LOG_FPU, "fpu_finished\n");
-		m_fpu_finished = 1;
+		m_fpu_finished = true;
 	}
 }
 
@@ -1103,7 +1103,7 @@ void tek440x_state::fpu_w(offs_t offset, u16 data)
 		// broadcast slave id  (0xbe or 0x3e)
 		case 6:
 			LOGMASKED(LOG_FPU,"fpu_w: broadcast slave 0x%04x\n", data);
-			m_fpu_finished = 0;
+			m_fpu_finished = false;
 			m_fpu->slow_write(data);
 			break;
 		case 7:
@@ -1364,7 +1364,7 @@ void tek440x_state::timer_irq(int state)
 		//LOG("M68K_IRQ_1 assert\n");
 		m_maincpu->set_input_line(M68K_IRQ_1, ASSERT_LINE);
 
-		m_u244latch = 1;
+		m_u244latch = true;
 	}
 	else
 	{
@@ -1381,7 +1381,7 @@ u16 tek440x_state::timer_r(offs_t offset)
 	{
 		LOGMASKED(LOG_IRQ,"timer_r: M68K_IRQ_1 clear\n");
 		m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
-		m_u244latch = 0;
+		m_u244latch = false;
 	}
 
 	return m_timer->read16(offset);
@@ -1397,7 +1397,7 @@ void tek440x_state::timer_w(offs_t offset, u16 data)
 	{
 		LOGMASKED(LOG_IRQ,"timer_w: M68K_IRQ_1 clear\n");
 		m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
-		m_u244latch = 0;
+		m_u244latch = false;
 	}
 }
 
@@ -1420,7 +1420,7 @@ void tek440x_state::duart_w(offs_t offset, u8 data)
 	m_duart->write(offset, data);
 }
 
-uint8_t tek440x_state::nvram_r(offs_t offset)
+u8 tek440x_state::nvram_r(offs_t offset)
 {
 	u8 data = m_novram->read(m_maincpu->space(0), offset);
 
@@ -1437,7 +1437,7 @@ void tek440x_state::nvram_w(offs_t offset, u8 data)
 	m_novram->write(offset, data | (data >> 4));
 }
 	
-uint8_t tek440x_state::recall_r()
+u8 tek440x_state::recall_r()
 {
 	LOG("recall_r\n");
 	if (!machine().side_effects_disabled())
@@ -1456,7 +1456,7 @@ void tek440x_state::recall_w(uint8_t data)
 	m_novram->recall(0);
 }
 
-uint8_t tek440x_state::store_r()
+u8 tek440x_state::store_r()
 {
 	LOG("store_r\n");
 	if (!machine().side_effects_disabled())
@@ -1501,9 +1501,10 @@ void tek440x_state::physical_map(address_map &map)
 	// 720000-720fff spare 1 (ethernet)
 	map(0x720000, 0x720007).rw(m_lance, FUNC(am79c90_device::regs_r), FUNC(am79c90_device::regs_w));
 
+	// maps 128 address range to nvram (see p2.8-3)
 	// 721000-72107f net ram
-	// 722000-721fff nvram nybbles
 	map(0x721000, 0x7210ff).rw(FUNC(tek440x_state::nvram_r), FUNC(tek440x_state::nvram_w));
+	// 722000-722fff nvram nybbles
 	map(0x722000, 0x722fff).rw(FUNC(tek440x_state::recall_r), FUNC(tek440x_state::recall_w));
 	map(0x723000, 0x723fff).rw(FUNC(tek440x_state::store_r), FUNC(tek440x_state::store_w));
 	
