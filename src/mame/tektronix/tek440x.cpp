@@ -93,9 +93,10 @@ constexpr offs_t OFF16_TO_OFF8(offs_t x) { return x<<1; }
 constexpr offs_t MAXRAM = 0x400000;	// +3MB
 
 // have m_readXX / m_writeXX use MMU translation
+//#define USE_MMU
 // OR
 // do MMU translation inside memory_r / memory_w
-#define USE_MMUxx
+#define USE_MMU_INLINE
 
 // pagetable as internal
 #define USE_INTERNAL_MAPxx
@@ -832,7 +833,7 @@ u16 tek440x_state::memory_r(offs_t offset, u16 mem_mask)
 
 	const offs_t offset0 = offset;
 
-#ifndef USE_MMU
+#ifdef USE_MMU_INLINE
 	if (!inbuserr)			// not in buserr interrupt
 	if ((m_maincpu->get_fc() & 4) == 0)			// only in User mode
 	if (BIT(m_map_control, MAP_VM_ENABLE) )
@@ -902,7 +903,7 @@ void tek440x_state::memory_w(offs_t offset, u16 data, u16 mem_mask)
 	
 	const offs_t offset0 = offset;
 	
-#ifndef USE_MMU
+#ifdef USE_MMU_INLINE
 	if ((m_maincpu->get_fc() & 4) == 0)		// only in User mode
 	if (BIT(m_map_control, MAP_VM_ENABLE))
 	{
@@ -1505,7 +1506,7 @@ void tek440x_state::logical_map(address_map &map)
 {
 	map(0x000000, 0x7fffff).rw(FUNC(tek440x_state::memory_r), FUNC(tek440x_state::memory_w));
 
-#ifndef USE_MMU
+#ifdef USE_MMU_INLINE
 	// NB we mask in handlers because I do not understand .mirror()!
 	map(0x800000, 0xffffff).rw(FUNC(tek440x_state::map_r), FUNC(tek440x_state::map_w));
 #endif
