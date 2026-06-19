@@ -677,6 +677,7 @@ private:
 	output_finder<4> m_leds;
 	output_finder<> m_led_disk;
 
+	bool m_inbuserr;
 	bool m_u244latch;
 	
 	bool m_boot;
@@ -720,6 +721,7 @@ void tek440x_state::machine_start()
 	save_item(NAME(m_videocntl));
 	save_item(NAME(m_diag));
 	
+	m_inbuserr = false;
 	m_maincpu->space(AS_PROGRAM).install_write_tap(0x7be002, 0x7be003, "led_tap", [this](offs_t offset, u16 &data, u16 mem_mask)
 		{ m_led_disk = !(data & 0x18);});
 
@@ -808,8 +810,6 @@ void tek440x_state::ready_sound(int state)
 }
 
 
-static int inbuserr = 0;
-
 /*************************************
  *
  *  CPU memory handlers
@@ -834,7 +834,7 @@ u16 tek440x_state::memory_r(offs_t offset, u16 mem_mask)
 	const offs_t offset0 = offset;
 
 #ifdef USE_MMU_INLINE
-	if (!inbuserr)			// not in buserr interrupt
+	if (!m_inbuserr)							// not in buserr interrupt
 	if ((m_maincpu->get_fc() & 4) == 0)			// only in User mode
 	if (BIT(m_map_control, MAP_VM_ENABLE) )
 	{
@@ -850,11 +850,11 @@ u16 tek440x_state::memory_r(offs_t offset, u16 mem_mask)
 
 // FIXME: if this is a prefetch, it will be cancelled in src/devices/cpu/m68000/m68kcpu.h, but we've changed m_map_control..
 
-			inbuserr = 1;
+			m_inbuserr = true;
 
 			LOGMASKED(LOG_MMU,"memory_r: %06x: bus error: PTE_PID(%d) != mapcntl_PID(%d) fc(%d) pc(%08x) berr(%d) map_control(%02x) latch(%02x)\n", offset<<1,
 				BIT(m_map[offset >> 11], 11, 3), (m_map_control & 7), m_maincpu->get_fc(), m_maincpu->pc(),
-				inbuserr, m_map_control, m_latched_map_control);
+				m_inbuserr, m_map_control, m_latched_map_control);
 			m_maincpu->set_buserror_details(OFF16_TO_OFF8(offset0), true, m_maincpu->get_fc(), true);
 
 			mem_mask = 0;
@@ -880,10 +880,10 @@ u16 tek440x_state::memory_r(offs_t offset, u16 mem_mask)
 		m_maincpu->set_buserror_details(OFF16_TO_OFF8(offset0), true, m_maincpu->get_fc(), true);
 	}
 
-	if (inbuserr && (m_maincpu->get_fc() & 4))
+	if (m_inbuserr && (m_maincpu->get_fc() & 4))
 	{
-	LOGMASKED(LOG_MMU,"berr reset(r) %06x\n", OFF16_TO_OFF8(offset));
-	inbuserr = 0;
+		LOGMASKED(LOG_MMU,"berr reset(r) %06x\n", OFF16_TO_OFF8(offset));
+		m_inbuserr = false;
 	}
 
 	return m_vm->read16(offset, mem_mask);
@@ -910,13 +910,13 @@ void tek440x_state::memory_w(offs_t offset, u16 data, u16 mem_mask)
 		//LOG("memory_w: m_map(0x%04x)\n", m_map[offset >> 11]);
 	
 		// is cpuWr
-		if (!inbuserr)
+		if (!m_inbuserr)
 			m_map_control |= (1 << MAP_CPU_WR);
 				
 		// matching pid?
 		if (!machine().side_effects_disabled() && (BIT(m_map[offset >> 11], 11, 3) != (m_map_control & 7)))
 		{
-			if (!inbuserr)
+			if (!m_inbuserr)
 			{
 				// NB active low
 				m_map_control &= ~(1 << MAP_BLOCK_ACCESS);
@@ -925,14 +925,14 @@ void tek440x_state::memory_w(offs_t offset, u16 data, u16 mem_mask)
 				m_maincpu->set_buserror_details(OFF16_TO_OFF8(offset0), false, m_maincpu->get_fc(), true);
 			}
 
-			inbuserr = 1;
+			m_inbuserr = true;
 		}
-		else if (!inbuserr)
+		else if (!m_inbuserr)
 		{
 			m_map_control |= (1 << MAP_BLOCK_ACCESS);
 		}
 		
-		if (inbuserr)
+		if (m_inbuserr)
 			mem_mask = 0;	// disable write
 
 		// write-enabled page?
@@ -942,7 +942,7 @@ void tek440x_state::memory_w(offs_t offset, u16 data, u16 mem_mask)
 		{
 			m_map_control &= ~(1 << MAP_BLOCK_ACCESS);
 			
-			inbuserr = 1;
+			m_inbuserr = true;
 
 			LOGMASKED(LOG_MMU,"memory_w:  %06x bus error: READONLY fc(%d) pc(%08x)\n",  OFF16_TO_OFF8(offset), m_maincpu->get_fc(),  m_maincpu->pc());
 			m_maincpu->set_buserror_details(OFF16_TO_OFF8(offset0), false, m_maincpu->get_fc(), true);
@@ -955,12 +955,12 @@ void tek440x_state::memory_w(offs_t offset, u16 data, u16 mem_mask)
 		if (mem_mask)
 		{
 			if (!(m_map[offset >> 11] & 0x8000))
-				LOGMASKED(LOG_MMU,"memory_w: DIRTY m_map(0x%04x) m_map_control(%02x) berr(%d) fc(%d)\n", m_map[offset >> 11], m_map_control, inbuserr, m_maincpu->get_fc());
+				LOGMASKED(LOG_MMU,"memory_w: DIRTY m_map(0x%04x) m_map_control(%02x) berr(%d) fc(%d)\n", m_map[offset >> 11], m_map_control, m_inbuserr, m_maincpu->get_fc());
 			m_map[offset >> 11] |= 0x8000;
 		}
 		
 		//if (mem_mask)
-		//	LOG("memory_w: map %08x => paddr(%08x) berr(%d) fc(%d) pc(%08x)\n",OFF16_TO_OFF8(offset), OFF16_TO_OFF8(BIT(offset, 0, 11) | BIT(m_map[offset >> 11], 0, 11) << 11), inbuserr, m_maincpu->get_fc(), m_maincpu->pc());
+		//	LOG("memory_w: map %08x => paddr(%08x) berr(%d) fc(%d) pc(%08x)\n",OFF16_TO_OFF8(offset), OFF16_TO_OFF8(BIT(offset, 0, 11) | BIT(m_map[offset >> 11], 0, 11) << 11), m_inbuserr, m_maincpu->get_fc(), m_maincpu->pc());
 
 		offset = BIT(offset, 0, 11) | (BIT(m_map[offset >> 11], 0, 11) << 11);
 	}
@@ -973,10 +973,10 @@ void tek440x_state::memory_w(offs_t offset, u16 data, u16 mem_mask)
 		m_maincpu->set_buserror_details(OFF16_TO_OFF8(offset0), false, m_maincpu->get_fc(), true);
 	}
 
-	if (inbuserr && (m_maincpu->get_fc() & 4))
+	if (m_inbuserr && (m_maincpu->get_fc() & 4))
 	{
-	LOGMASKED(LOG_MMU,"berr reset(w) %06x\n", OFF16_TO_OFF8(offset));
-	inbuserr = 0;
+		LOGMASKED(LOG_MMU,"berr reset(w) %06x\n", OFF16_TO_OFF8(offset));
+		m_inbuserr = false;
 	}
 
 	m_vm->write16(offset, data, mem_mask);
