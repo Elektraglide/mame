@@ -764,8 +764,6 @@ int ncr5385_device::state_step()
 			// clear data and ACK
 			m_scsi_bus->data_w(m_scsi_refid, 0);
 			m_scsi_bus->ctrl_w(m_scsi_refid, 0, S_ACK);
-
-			delay = 0;
 		}
 		else
 			delay = -1;
