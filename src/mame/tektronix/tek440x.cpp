@@ -514,6 +514,26 @@ public:
 DEFINE_DEVICE_TYPE(M68010_TEKMMU, m68010_tekmmu_device, "mc68010_tekmmu", "MC68010 with Tek4404 custom MMU")
 
 
+// tek4404 MSU expects 1.2MBps transfer rate
+DECLARE_DEVICE_TYPE(NSCSI_ADAPTEC, nscsi_adaptec_device)
+
+class nscsi_adaptec_device : public nscsi_harddisk_device
+{
+public:
+	nscsi_adaptec_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+		nscsi_harddisk_device(mconfig, NSCSI_ADAPTEC, tag, owner, clock)
+	{
+	}
+
+	// experiment for slowing target device (based on 1.2MBps)
+	virtual attotime scsi_data_byte_period() override { return attotime::from_nsec(820); }
+
+};
+
+DEFINE_DEVICE_TYPE(NSCSI_ADAPTEC, nscsi_adaptec_device, "scsi_adaptec", "Adaptec 4000 5.25 Inch Winchester Disk Controller")
+
+
+
 namespace {
 
 	enum {
@@ -1589,7 +1609,7 @@ INPUT_PORTS_END
 
 static void scsi_devices(device_slot_interface &device)
 {
-	device.option_add("harddisk", NSCSI_HARDDISK);
+	device.option_add("harddisk", NSCSI_ADAPTEC);
 	device.option_add("tek_msu_fdc", TEK_MSU_FDC);
 }
 
