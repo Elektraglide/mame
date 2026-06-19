@@ -170,11 +170,8 @@ void ncr5385_device::scsi_ctrl_changed()
 
 	if (ctrl & S_BSY)
 	{
-		if (ctrl & S_SEL)
-			LOGMASKED(LOG_STATE, "%10s: scsi_ctrl_changed 0x%03x arbitration/selection\n", machine().time().as_string(8), ctrl);
-		else
-			LOGMASKED(LOG_STATE, "%10s: scsi_ctrl_changed 0x%03x phase %s%s%s\n", machine().time().as_string(8), ctrl, nscsi_phase[ctrl & S_PHASE_MASK],
-				ctrl & S_REQ ? " REQ" : "", ctrl & S_ACK ? " ACK" : "");
+		LOGMASKED(LOG_STATE, "scsi_ctrl_changed 0x%03x phase %s%s%s\n", ctrl, nscsi_phase[ctrl & S_PHASE_MASK],
+			ctrl & S_REQ ? " REQ" : "", ctrl & S_ACK ? " ACK" : "");
 
 		if (m_state != IDLE)
 			m_state_timer->adjust(attotime::from_usec(30));
