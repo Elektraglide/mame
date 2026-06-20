@@ -168,23 +168,13 @@ void ncr5385_device::scsi_ctrl_changed()
 
 	static char const *const nscsi_phase[] = { "DATA OUT", "DATA IN", "COMMAND", "STATUS", "*", "*", "MESSAGE OUT", "MESSAGE IN" };
 
-	if ((ctrl & S_BSY) && !(ctrl & S_SEL))
+	if (ctrl & S_BSY)
 	{
 		LOGMASKED(LOG_STATE, "scsi_ctrl_changed 0x%03x phase %s%s%s\n", ctrl, nscsi_phase[ctrl & S_PHASE_MASK],
 			ctrl & S_REQ ? " REQ" : "", ctrl & S_ACK ? " ACK" : "");
 
 		if (m_state != IDLE)
-			m_state_timer->adjust(attotime::zero);
-	}
-	else if (ctrl & S_BSY)
-	{
-		LOGMASKED(LOG_STATE, "scsi_ctrl_changed 0x%03x arbitration/selection\n", ctrl);
-
-		// the target asserts BSY in response to selection while the initiator is still
-		// asserting SEL; complete the selection as soon as the target responds instead
-		// of waiting out the full selection timeout that SEL_WAIT_BSY was armed with.
-		if (m_state == SEL_WAIT_BSY)
-			m_state_timer->adjust(attotime::zero);
+			m_state_timer->adjust(attotime::from_usec(30));
 	}
 	else
 	{
