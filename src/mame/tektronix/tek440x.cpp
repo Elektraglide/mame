@@ -644,13 +644,6 @@ private:
 
 	void printer_pc_w(u8 data);
 
-	u8 nvram_r(address_space &space, offs_t offset);
-	void nvram_w(offs_t offset, u8 data);
-	u8 recall_r();
-	void recall_w(u8 data);
-	u8 store_r();
-	void store_w(u8 data);
-
 	void kb_rdata_w(int state);
 	void kb_tdata_w(int state);
 	void kb_rclamp_w(int state);
