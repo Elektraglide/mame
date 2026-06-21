@@ -1688,8 +1688,6 @@ void tek440x_state::tek4404(machine_config &config)
 
 	X2210(config, m_novram);
 
-	X2210(config, m_novram);
-
 	MC68681(config, m_duart, 14.7456_MHz_XTAL / 4);
 	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_5); // auto-vectored
 	m_duart->outport_cb().set(FUNC(tek440x_state::kb_rclamp_w)).bit(4);
