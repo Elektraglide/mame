@@ -59,6 +59,7 @@
 #include "machine/ncr5385.h"
 #include "machine/ns32081.h"
 #include "machine/nscsi_bus.h"
+#include "machine/ram.h"
 #include "machine/x2212.h"
 #include "sound/sn76496.h"
 
@@ -85,6 +86,7 @@ public:
 		m_novram(*this, "novram"),
 		m_vint(*this, "vint"),
 		m_prom(*this, "bootrom"),
+		m_ram(*this, RAM_TAG),
 		m_mainram(*this, "mainram"),
 		m_vram(*this, "vram"),
 		m_map(*this, "map", 0x1000, ENDIANNESS_BIG),
@@ -140,10 +142,14 @@ private:
 	required_device<input_merger_all_high_device> m_vint;
 
 	required_region_ptr<u16> m_prom;
+	required_device<ram_device> m_ram;
 	required_shared_ptr<u16> m_mainram;
 	required_shared_ptr<u16> m_vram;
 	memory_share_creator<u16> m_map;
 	memory_view m_map_view;
+
+	uint16_t *m_ram_ptr;
+	uint32_t m_ram_size,m_ram_size_words;
 
 	bool m_boot;
 	u8 m_map_control;
@@ -169,6 +175,22 @@ void tek440x_state::machine_start()
 	save_item(NAME(m_kb_tdata));
 	save_item(NAME(m_kb_rclamp));
 	save_item(NAME(m_kb_loop));
+
+	m_ram_ptr = (uint16_t *)m_ram->pointer();
+	m_ram_size = m_ram->size();
+	// sanity: can only be 1,2 or 4MB
+	if ((m_ram_size != 0x100000) && (m_ram_size != 0x200000) && (m_ram_size != 0x400000))
+		m_ram_size = 0x400000;
+	
+	m_ram_size_words = (m_ram_size >> 1);
+	LOG("RAM config: 0x%08x bytes, 0x%08x words => %p\n",m_ram_size, m_ram_size_words, m_ram_ptr);
+	
+	address_space &space = m_maincpu->space(AS_PROGRAM);
+	const u32 memory_end = m_ram_size - 1;
+	void *memory_data = m_ram_ptr;
+	offs_t memory_mirror = memory_end & ~memory_end;
+
+	space.install_ram(0x00000000, memory_end & ~memory_mirror, memory_mirror, memory_data);
 }
 
 
@@ -484,6 +506,9 @@ void tek440x_state::tek4404(machine_config &config)
 {
 	/* basic machine hardware */
 	M68010(config, m_maincpu, 40_MHz_XTAL / 4); // MC68010L10
+
+	RAM(config, RAM_TAG).set_default_size("4M").set_extra_options("1M,2M,4M");
+
 	m_maincpu->set_addrmap(AS_PROGRAM, &tek440x_state::logical_map);
 
 	ADDRESS_MAP_BANK(config, m_vm);
