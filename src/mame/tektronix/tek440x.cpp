@@ -63,6 +63,7 @@
 #include "machine/ncr5385.h"
 #include "machine/ns32081.h"
 #include "machine/nscsi_bus.h"
+#include "machine/ram.h"
 #include "machine/x2212.h"
 #include "sound/sn76496.h"
 
@@ -563,7 +564,7 @@ public:
 		m_novram(*this, "novram"),
 		m_printer(*this, "printer"),
 		m_prom(*this, "bootrom"),
-		m_mainram(*this, "mainram"),
+		m_ram(*this, RAM_TAG),
 		m_vram(*this, "vram"),
 		m_map(*this, "map", 0x1000, ENDIANNESS_BIG),		// 2k 16-bit entries
 		m_map_view(*this, "map"),
@@ -667,7 +668,7 @@ private:
 	required_device<i8255_device> m_printer;
 
 	required_region_ptr<u16> m_prom;
-	required_shared_ptr<u16> m_mainram;
+	required_device<ram_device> m_ram;
 	required_shared_ptr<u16> m_vram;
 	memory_share_creator<u16> m_map;
 	memory_view m_map_view;
@@ -679,7 +680,11 @@ private:
 	output_finder<4> m_leds;
 	output_finder<> m_led_disk;
 
+
 	bool m_inbuserr;
+	uint16_t *m_ram_ptr;
+	uint32_t m_ram_size,m_ram_size_words;
+	
 	bool m_u244latch;
 	
 	bool m_boot;
@@ -726,6 +731,22 @@ void tek440x_state::machine_start()
 	save_item(NAME(m_diag));
 	
 	m_inbuserr = false;
+	m_ram_ptr = (uint16_t *)m_ram->pointer();
+	m_ram_size = m_ram->size();
+	// sanity: can only be 1,2 or 4MB
+	if ((m_ram_size != 0x100000) && (m_ram_size != 0x200000) && (m_ram_size != 0x400000))
+		m_ram_size = MAXRAM;
+	
+	m_ram_size_words = OFF8_TO_OFF16(m_ram_size);
+	LOG("RAM config: 0x%08x bytes, 0x%08x words => %p\n",m_ram_size, m_ram_size_words, m_ram_ptr);
+	
+	address_space &space = m_vm->space(AS_PROGRAM);
+	const u32 memory_end = m_ram_size - 1;
+	void *memory_data = m_ram_ptr;
+	offs_t memory_mirror = memory_end & ~memory_end;
+
+	space.install_ram(0x00000000, memory_end & ~memory_mirror, memory_mirror, memory_data);
+	
 	m_maincpu->space(AS_PROGRAM).install_write_tap(0x7be002, 0x7be003, "led_tap", [this](offs_t offset, u16 &data, u16 mem_mask)
 		{ m_led_disk = !(data & 0x18);});
 
@@ -878,7 +899,7 @@ u16 tek440x_state::memory_r(offs_t offset, u16 mem_mask)
 
 	// NB byte memory limit, offset is *word* offset
 	if (!machine().side_effects_disabled())
-	if (offset >= OFF8_TO_OFF16(MAXRAM) && offset < OFF8_TO_OFF16(0x600000))
+	if (offset >= m_ram_size_words && offset < OFF8_TO_OFF16(0x600000))
 	{
 		LOGMASKED(LOG_MMU,"memory_r: %08x bus error: NOMEM fc(%d) pc(%08x)\n",  OFF16_TO_OFF8(offset), m_maincpu->get_fc(), m_maincpu->pc());
 		m_maincpu->set_buserror_details(OFF16_TO_OFF8(offset0), true, m_maincpu->get_fc(), true);
@@ -971,7 +992,7 @@ void tek440x_state::memory_w(offs_t offset, u16 data, u16 mem_mask)
 #endif
 
 	// NB byte memory limit, offset is *word* offset
-	if (offset >= OFF8_TO_OFF16(MAXRAM) && offset < OFF8_TO_OFF16(0x600000) && !machine().side_effects_disabled())
+	if (offset >= m_ram_size_words && offset < OFF8_TO_OFF16(0x600000) && !machine().side_effects_disabled())
 	{
 		LOGMASKED(LOG_MMU,"memory_w: bus error: NOMEM %08x fc(%d)\n",  OFF16_TO_OFF8(offset), m_maincpu->get_fc());
 		m_maincpu->set_buserror_details(OFF16_TO_OFF8(offset0), false, m_maincpu->get_fc(), true);
@@ -1518,7 +1539,6 @@ void tek440x_state::logical_map(address_map &map)
 
 void tek440x_state::physical_map(address_map &map)
 {
-	map(0x000000, MAXRAM-1).ram().share("mainram");						// +3MB RAM option;
 	map(0x600000, 0x61ffff).ram().share("vram");
 
 	// 700000-71ffff spare 0
@@ -1632,7 +1652,9 @@ void tek440x_state::tek4404(machine_config &config)
 	/* basic machine hardware */
 	M68010_TEKMMU(config, m_maincpu, 40_MHz_XTAL / 4); // MC68010L10
 	// TODO: Use 20MHz CPU rather than using -speed 2 which breaks RTC, audio etc etc
-	
+
+	RAM(config, RAM_TAG).set_default_size("4M").set_extra_options("1M,2M,4M");
+
 	m_maincpu->set_addrmap(AS_PROGRAM, &tek440x_state::logical_map);
 
 	ADDRESS_MAP_BANK(config, m_vm);
