@@ -1544,7 +1544,6 @@ void tek440x_state::physical_map(address_map &map)
 	// 700000-71ffff spare 0
 	// 720000-720fff spare 1 (ethernet)
 	map(0x720000, 0x720007).rw(m_lance, FUNC(am79c90_device::regs_r), FUNC(am79c90_device::regs_w));
-	// 720000-73ffff spare 1
 
 	// maps 128 address range to nvram (see p2.8-3)
 	// 721000-72107f net ram (A0 ignored, uses A1-A6)
