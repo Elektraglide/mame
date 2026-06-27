@@ -795,8 +795,8 @@ u32 tek440x_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, co
 {
 	if (!BIT(m_videocntl, 5))
 	{
-		// screen off
-		bitmap.fill((uint16_t)0xffff, cliprect);
+		// screen off so fill with pen#1
+		bitmap.fill(1, cliprect);
 		return 0;
 	}
 
