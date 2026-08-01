@@ -757,9 +757,6 @@ void tek440x_state::machine_reset()
 {
 	m_ram_ptr = (uint16_t *)m_ram->pointer();
 	m_ram_size = m_ram->size();
-	// sanity: can only be 1,2 or 4MB
-	if ((m_ram_size != 0x100000) && (m_ram_size != 0x200000) && (m_ram_size != 0x400000))
-		m_ram_size = MAXRAM;
 	
 	m_ram_size_words = OFF8_TO_OFF16(m_ram_size);
 	LOG("RAM config: 0x%08x bytes, 0x%08x words => %p\n",m_ram_size, m_ram_size_words, m_ram_ptr);
