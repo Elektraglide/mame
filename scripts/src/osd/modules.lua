@@ -118,6 +118,7 @@ function osdmodulesbuild()
 		MAME_DIR .. "src/osd/modules/netdev/netdev_common.h",
 		MAME_DIR .. "src/osd/modules/netdev/netdev_module.h",
 		MAME_DIR .. "src/osd/modules/netdev/none.cpp",
+		MAME_DIR .. "src/osd/modules/netdev/feth.cpp",
 		MAME_DIR .. "src/osd/modules/netdev/pcap.cpp",
 		MAME_DIR .. "src/osd/modules/netdev/taptun.cpp",
 		MAME_DIR .. "src/osd/modules/output/console.cpp",
@@ -613,6 +614,15 @@ newoption {
 }
 
 newoption {
+	trigger = "USE_FETH",
+	description = "Include feth network module",
+	allowed = {
+		{ "0",  "Don't include feth network module" },
+		{ "1",  "Include feth network module" },
+	},
+}
+
+newoption {
 	trigger = "NO_OPENGL",
 	description = "Disable use of OpenGL",
 	allowed = {
@@ -738,6 +748,14 @@ if not _OPTIONS["USE_PCAP"] then
 		_OPTIONS["USE_PCAP"] = "1"
 	else
 		_OPTIONS["USE_PCAP"] = "0"
+	end
+end
+
+if not _OPTIONS["USE_FETH"] then
+	if _OPTIONS["targetos"]=="macosx" or _OPTIONS["targetos"]=="netbsd" then
+		_OPTIONS["USE_FETH"] = "1"
+	else
+		_OPTIONS["USE_FETH"] = "0"
 	end
 end
 
