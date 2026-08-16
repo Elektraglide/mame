@@ -24,6 +24,29 @@
  gcc daemon_bpf.c -o daemon_bpf
 
  */
+#ifdef __clang__
+#pragma pack(push, 1)
+#endif
+struct eth2
+{
+	uint8_t destmac[6];
+	uint8_t srcmac[6];
+	uint16_t type;
+	
+	struct
+	{
+		uint16_t verihl,len;
+		uint16_t ident,flags;
+		uint8_t ttl,proto;
+		uint16_t checksum;
+		uint32_t srcip;
+		uint32_t dstip;
+	} ipv4;
+};
+#ifdef __clang__
+#pragma pack(pop)
+#endif
+
 
 int open_bpf_device(const char *iface_name, uint8_t *mac) {
     char bpf_path[32];
@@ -155,6 +178,21 @@ uint32_t calculate_ethernet_crc32(const uint8_t *data, size_t length) {
     return ~crc; // Final inversion (ones' complement)
 }
 
+void logpacket(char *label, int len, struct eth2 *ethpkt)
+{
+
+	char dstip[16];
+	strcpy(dstip, inet_ntoa(*(struct in_addr *)&(ethpkt->ipv4.dstip)));
+	char srcip[16];
+	strcpy(srcip,  inet_ntoa(*(struct in_addr *)&(ethpkt->ipv4.srcip)));
+	
+	printf("%s(%4d): destmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x %s srcmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x  %s\033[0m\n",
+		label, len,
+		ethpkt->destmac[0],ethpkt->destmac[1],ethpkt->destmac[2],ethpkt->destmac[3],ethpkt->destmac[4],ethpkt->destmac[5],
+		dstip,
+		ethpkt->srcmac[0],ethpkt->srcmac[1],ethpkt->srcmac[2],ethpkt->srcmac[3],ethpkt->srcmac[4],ethpkt->srcmac[5],
+		srcip);
+}
 
 int main(int argc, char *argv[])
 {
@@ -190,6 +228,7 @@ int main(int argc, char *argv[])
 		mac[0],mac[1],mac[2],mac[3],mac[4],mac[5], UDP_PORT);
 
 	uint8_t forwardingmac[6];
+	uint32_t forwardingip = 0x08040201;
     uint8_t buffer[BUFFER_SIZE];
     fd_set read_fds;
 	
@@ -207,19 +246,18 @@ int main(int argc, char *argv[])
             if (len > 0) {
                 write(bpf_fd, buffer, len);
                 
-                uint8_t *destmac = buffer + 0;
+                struct eth2 *ethpkt = (struct eth2 *)buffer;
 
                 // keep MAC that forwarded this packet so we can reroute any reply
-                forwardingmac[0] = destmac[6];
-                forwardingmac[1] = destmac[7];
-                forwardingmac[2] = destmac[8];
-                forwardingmac[3] = destmac[9];
-                forwardingmac[4] = destmac[10];
-                forwardingmac[5] = destmac[11];
-
-                printf("WRITE(%4d): destmac: \033[7m%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\033[0m srcmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\n",len,
-					destmac[0],destmac[1],destmac[2],destmac[3],destmac[4],destmac[5],
-					destmac[6],destmac[7],destmac[8],destmac[9],destmac[10],destmac[11]);
+                forwardingmac[0] = ethpkt->srcmac[0];
+                forwardingmac[1] = ethpkt->srcmac[1];
+                forwardingmac[2] = ethpkt->srcmac[2];
+                forwardingmac[3] = ethpkt->srcmac[3];
+                forwardingmac[4] = ethpkt->srcmac[4];
+                forwardingmac[5] = ethpkt->srcmac[5];
+                forwardingip = ethpkt->ipv4.srcip;
+                
+                logpacket("WRITE\033[7m", len, ethpkt);
             }
         }
 
@@ -232,24 +270,26 @@ int main(int argc, char *argv[])
                 struct bpf_hdr *hdr = (struct bpf_hdr *)buffer;
                 uint8_t *packet_data = buffer + hdr->bh_hdrlen;
 
-				uint8_t *destmac = packet_data + 0;
+				struct eth2 *ethpkt = (struct eth2 *)packet_data;
 				
 				// if dest is this NIC
-				if (destmac[0]==mac[0] &&
-					destmac[1]==mac[1] &&
-					destmac[2]==mac[2] &&
-					destmac[3]==mac[3] &&
-					destmac[4]==mac[4] &&
-					destmac[5]==mac[5])
+				if (ethpkt->destmac[0]==mac[0] &&
+					ethpkt->destmac[1]==mac[1] &&
+					ethpkt->destmac[2]==mac[2] &&
+					ethpkt->destmac[3]==mac[3] &&
+					ethpkt->destmac[4]==mac[4] &&
+					ethpkt->destmac[5]==mac[5])
 				{
 					// change it to the MAC we are forwarding
-					destmac[0] = forwardingmac[0];
-					destmac[1] = forwardingmac[1];
-					destmac[2] = forwardingmac[2];
-					destmac[3] = forwardingmac[3];
-					destmac[4] = forwardingmac[4];
-					destmac[5] = forwardingmac[5];
+					ethpkt->destmac[0] = forwardingmac[0];
+					ethpkt->destmac[1] = forwardingmac[1];
+					ethpkt->destmac[2] = forwardingmac[2];
+					ethpkt->destmac[3] = forwardingmac[3];
+					ethpkt->destmac[4] = forwardingmac[4];
+					ethpkt->destmac[5] = forwardingmac[5];
 
+					ethpkt->ipv4.dstip = forwardingip;
+					
 					// recompute the frame check sequence
 #if 0				// netdev_feth recalculates CRC
 					const uint32_t fcs = calculate_ethernet_crc32(packet_data, hdr->bh_caplen - 4);
@@ -260,16 +300,11 @@ int main(int argc, char *argv[])
 #endif
 
 					sendto(udp_fd, packet_data, hdr->bh_caplen, 0, (struct sockaddr*)&mame_addr, mame_addr_len);
-
-					printf("PACKET(%4d): destmac: \033[1;32m%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\033[0m srcmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\n",len,
-						destmac[0],destmac[1],destmac[2],destmac[3],destmac[4],destmac[5],
-						destmac[6],destmac[7],destmac[8],destmac[9],destmac[10],destmac[11]);
+					logpacket("\033[1;32mPACKET", len, ethpkt);
 				}
 				else
 				{
-					printf("\033[3;33mPACKET(%4d): destmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x srcmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\n\033[0m",len,
-						destmac[0],destmac[1],destmac[2],destmac[3],destmac[4],destmac[5],
-						destmac[6],destmac[7],destmac[8],destmac[9],destmac[10],destmac[11]);
+					logpacket("\033[3;33mPACKET", len, ethpkt);
 				}
             }
         }
