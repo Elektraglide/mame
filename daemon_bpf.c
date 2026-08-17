@@ -33,22 +33,36 @@ struct eth2
 	uint8_t srcmac[6];
 	uint16_t type;
 	
-	struct
+	union
 	{
-		uint16_t verihl,len;
-		uint16_t ident,flags;
-		uint8_t ttl,proto;
-		uint16_t checksum;
-		uint32_t srcip;
-		uint32_t dstip;
-	} ipv4;
+		struct
+		{
+			uint16_t hwtype,ptype;
+			uint8_t hwlen,plen;
+			uint16_t op;
+			uint8_t srcmac[6];
+			uint32_t srcip;
+			uint8_t destmac[6];
+			uint32_t dstip;
+		} arp;
+
+		struct
+		{
+			uint16_t verihl,len;
+			uint16_t ident,fragoff;
+			uint8_t ttl,proto;
+			uint16_t checksum;
+			uint32_t srcip;
+			uint32_t dstip;
+		} ipv4;
+	};
 };
 #ifdef __clang__
 #pragma pack(pop)
 #endif
 
 
-int open_bpf_device(const char *iface_name, uint8_t *mac) {
+int open_bpf_device(const char *iface_name, uint8_t *hostmac) {
     char bpf_path[32];
     int bpf_fd = -1;
 
@@ -85,15 +99,6 @@ int open_bpf_device(const char *iface_name, uint8_t *mac) {
     u_int immediate = 1;
     ioctl(bpf_fd, BIOCIMMEDIATE, &immediate);
 
-#if 1
-	// we only want for our MAC
-	struct bpf_insn insnsMAC[] = {
-		{ BPF_LD + BPF_W + BPF_ABS, 0, 0, 0 },				// Dest MAC (offset 0)
-		{ BPF_JMP + BPF_JEQ + BPF_K, 0, 1, 0x66fd3c78 }, 	// First 4 bytes of MAC 66:fd:3c:78:18:ff
-		{ BPF_RET + BPF_K, 0, 0, 65535 },
-		{ BPF_RET + BPF_K, 0, 0, 0 }
-	};
-	
 	// we only want IPv4 packets
 	struct bpf_insn insnsIPV4[] = {
 		{ BPF_LD + BPF_H + BPF_ABS, 0, 0, 12 },				// Ethernet Type (offset 12)
@@ -104,7 +109,6 @@ int open_bpf_device(const char *iface_name, uint8_t *mac) {
 	
 	struct bpf_program filter = { 4, insnsIPV4 };
 	ioctl(bpf_fd, BIOCSETF, &filter);
-#endif
 
     printf("Successfully bound BPF node to interface: %s\n", iface_name);
 
@@ -125,7 +129,7 @@ int open_bpf_device(const char *iface_name, uint8_t *mac) {
             struct sockaddr_dl* sdp;
 
             sdp = (struct sockaddr_dl*) p->ifa_addr;
-            memcpy((void *)mac, sdp->sdl_data + sdp->sdl_nlen, ETHER_ADDR_LEN);
+            memcpy((void *)hostmac, sdp->sdl_data + sdp->sdl_nlen, ETHER_ADDR_LEN);
             break;
         }
     }
@@ -180,14 +184,43 @@ uint32_t calculate_ethernet_crc32(const uint8_t *data, size_t length) {
 
 void logpacket(char *label, int len, struct eth2 *ethpkt)
 {
-
 	char dstip[16];
-	strcpy(dstip, inet_ntoa(*(struct in_addr *)&(ethpkt->ipv4.dstip)));
 	char srcip[16];
-	strcpy(srcip,  inet_ntoa(*(struct in_addr *)&(ethpkt->ipv4.srcip)));
-	
-	printf("%s(%4d): destmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x %s srcmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x  %s\033[0m\n",
-		label, len,
+	char *pkind;
+	char pbuff[8];
+
+	if (ethpkt->type == ntohs(0x0806))
+	{
+		strcpy(dstip, inet_ntoa(*(struct in_addr *)&(ethpkt->arp.dstip)));
+		strcpy(srcip,  inet_ntoa(*(struct in_addr *)&(ethpkt->arp.srcip)));
+		pkind = "ARP ";
+	}
+	else
+	if (ethpkt->type == ntohs(0x0800))
+	{
+		strcpy(dstip, inet_ntoa(*(struct in_addr *)&(ethpkt->ipv4.dstip)));
+		strcpy(srcip,  inet_ntoa(*(struct in_addr *)&(ethpkt->ipv4.srcip)));
+		
+		switch(ethpkt->ipv4.proto)
+		{
+			case 1:
+				pkind = "ICMP";
+				break;
+			case 6:
+				pkind = "TCP ";
+				break;
+			case 17:
+				pkind = "UDP ";
+				break;
+			default:
+				sprintf(pbuff,"%4d", ethpkt->ipv4.proto);
+				pkind = pbuff;
+				break;
+		}
+	}
+		
+	printf("%s(%4d): [%s] destmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x %s srcmac: %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x  %s\033[0m\n",
+		label, len, pkind,
 		ethpkt->destmac[0],ethpkt->destmac[1],ethpkt->destmac[2],ethpkt->destmac[3],ethpkt->destmac[4],ethpkt->destmac[5],
 		dstip,
 		ethpkt->srcmac[0],ethpkt->srcmac[1],ethpkt->srcmac[2],ethpkt->srcmac[3],ethpkt->srcmac[4],ethpkt->srcmac[5],
@@ -196,7 +229,7 @@ void logpacket(char *label, int len, struct eth2 *ethpkt)
 
 int main(int argc, char *argv[])
 {
-	uint8_t mac[ETHER_ADDR_LEN];
+	uint8_t hostmac[ETHER_ADDR_LEN];
 	
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <interface_name (e.g., en0)>\n", argv[0]);
@@ -205,7 +238,7 @@ int main(int argc, char *argv[])
 
 	signal(SIGINT, sighandler);
 
-    int bpf_fd = open_bpf_device(argv[1], mac);
+    int bpf_fd = open_bpf_device(argv[1], hostmac);
     if (bpf_fd < 0) return 1;
 
     // Create the host UDP socket to talk to MAME
@@ -225,9 +258,9 @@ int main(int argc, char *argv[])
     }
 
     printf("Daemon running. \033[1m%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\033[0m now listening for MAME frames on UDP port %d...\n",
-		mac[0],mac[1],mac[2],mac[3],mac[4],mac[5], UDP_PORT);
+		hostmac[0],hostmac[1],hostmac[2],hostmac[3],hostmac[4],hostmac[5], UDP_PORT);
 
-	uint8_t forwardingmac[6];
+	uint8_t forwardingmac[6] = {0,0,0,0,0,0};
 	uint32_t forwardingip = 0x08040201;
     uint8_t buffer[BUFFER_SIZE];
     fd_set read_fds;
@@ -258,6 +291,12 @@ int main(int argc, char *argv[])
                 forwardingip = ethpkt->ipv4.srcip;
                 
                 logpacket("WRITE\033[7m", len, ethpkt);
+                
+                for(int i=0; i<len; i++)
+                {
+					printf("%2.2x ", buffer[i]);
+                }
+                printf("\n");
             }
         }
 
@@ -273,12 +312,12 @@ int main(int argc, char *argv[])
 				struct eth2 *ethpkt = (struct eth2 *)packet_data;
 				
 				// if dest is this NIC
-				if (ethpkt->destmac[0]==mac[0] &&
-					ethpkt->destmac[1]==mac[1] &&
-					ethpkt->destmac[2]==mac[2] &&
-					ethpkt->destmac[3]==mac[3] &&
-					ethpkt->destmac[4]==mac[4] &&
-					ethpkt->destmac[5]==mac[5])
+				if (ethpkt->destmac[0]==hostmac[0] &&
+					ethpkt->destmac[1]==hostmac[1] &&
+					ethpkt->destmac[2]==hostmac[2] &&
+					ethpkt->destmac[3]==hostmac[3] &&
+					ethpkt->destmac[4]==hostmac[4] &&
+					ethpkt->destmac[5]==hostmac[5])
 				{
 					// change it to the MAC we are forwarding
 					ethpkt->destmac[0] = forwardingmac[0];
@@ -289,7 +328,7 @@ int main(int argc, char *argv[])
 					ethpkt->destmac[5] = forwardingmac[5];
 
 					ethpkt->ipv4.dstip = forwardingip;
-					
+
 					// recompute the frame check sequence
 #if 0				// netdev_feth recalculates CRC
 					const uint32_t fcs = calculate_ethernet_crc32(packet_data, hdr->bh_caplen - 4);
@@ -300,11 +339,32 @@ int main(int argc, char *argv[])
 #endif
 
 					sendto(udp_fd, packet_data, hdr->bh_caplen, 0, (struct sockaddr*)&mame_addr, mame_addr_len);
-					logpacket("\033[1;32mPACKET", len, ethpkt);
+					logpacket("\033[0;32mPACKET", len, ethpkt);
+
+					for(int i=0; i<32; i++)
+					{
+						printf("%2.2x ", buffer[i]);
+					}
+					printf("\n");
 				}
 				else
+				// if dest is broadcast
+				if (ethpkt->destmac[0]==0xff && ethpkt->destmac[1]==0xff && ethpkt->destmac[2]==0xff &&
+					ethpkt->destmac[3]==0xff && ethpkt->destmac[4]==0xff && ethpkt->destmac[5]==0xff &&
+					ethpkt->ipv4.srcip != forwardingip)
 				{
-					logpacket("\033[3;33mPACKET", len, ethpkt);
+					sendto(udp_fd, packet_data, hdr->bh_caplen, 0, (struct sockaddr*)&mame_addr, mame_addr_len);
+					logpacket("\033[1;32;43mBROADC", len, ethpkt);
+
+					for(int i=0; i<len; i++)
+					{
+						printf("%2.2x ", buffer[i]);
+					}
+					printf("\n");
+				}
+				else	// not for us
+				{
+					logpacket("\033[2;32mPACKET", len, ethpkt);
 				}
             }
         }
