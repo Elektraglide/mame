@@ -344,9 +344,9 @@ int main(int argc, char *argv[])
 					sendto(udp_fd, packet_data, hdr->bh_caplen, 0, (struct sockaddr*)&mame_addr, mame_addr_len);
 					logpacket("\033[0;32mPACKET", len, ethpkt);
 
-					for(int i=0; i<32; i++)
+					for(int i=0; i<len; i++)
 					{
-						printf("%2.2x ", buffer[i]);
+						printf("%2.2x ", packet_data[i]);
 					}
 					printf("\n");
 				}
@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
 
 					for(int i=0; i<len; i++)
 					{
-						printf("%2.2x ", buffer[i]);
+						printf("%2.2x ", packet_data[i]);
 					}
 					printf("\n");
 				}
