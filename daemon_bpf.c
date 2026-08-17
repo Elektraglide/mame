@@ -327,7 +327,10 @@ int main(int argc, char *argv[])
 					ethpkt->destmac[4] = forwardingmac[4];
 					ethpkt->destmac[5] = forwardingmac[5];
 
-					ethpkt->ipv4.dstip = forwardingip;
+					if (ethpkt->type == ntohs(0x0800))
+						ethpkt->ipv4.dstip = forwardingip;
+					if (ethpkt->type == ntohs(0x0806))
+						ethpkt->arp.dstip = forwardingip;
 
 					// recompute the frame check sequence
 #if 0				// netdev_feth recalculates CRC
