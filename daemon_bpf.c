@@ -182,6 +182,26 @@ uint32_t calculate_ethernet_crc32(const uint8_t *data, size_t length) {
     return ~crc; // Final inversion (ones' complement)
 }
 
+uint16_t calculate_ipv4_checksum(uint16_t *src)
+{
+	int32_t sum = 0;
+	
+	sum += ntohs(*src++);
+	sum += ntohs(*src++);
+	sum += ntohs(*src++);
+	sum += ntohs(*src++);
+	sum += ntohs(*src++);
+	src++;		// skip checksum itself
+	sum += ntohs(*src++);
+	sum += ntohs(*src++);
+	sum += ntohs(*src++);
+	sum += ntohs(*src++);
+
+	sum += (sum >> 16);
+
+	return htons(sum ^ 0xffff);
+}
+
 void logpacket(char *label, int len, struct eth2 *ethpkt)
 {
 	char dstip[16];
@@ -328,9 +348,15 @@ int main(int argc, char *argv[])
 					ethpkt->destmac[5] = forwardingmac[5];
 
 					if (ethpkt->type == ntohs(0x0800))
+					{
 						ethpkt->ipv4.dstip = forwardingip;
+						ethpkt->ipv4.checksum = calculate_ipv4_checksum((uint16_t *)&ethpkt->ipv4);
+					}
+					else
 					if (ethpkt->type == ntohs(0x0806))
+					{
 						ethpkt->arp.dstip = forwardingip;
+					}
 
 					// recompute the frame check sequence
 #if 0				// netdev_feth recalculates CRC
@@ -366,8 +392,9 @@ int main(int argc, char *argv[])
 					printf("\n");
 				}
 				else	// not for us
+				if (1)
 				{
-					logpacket("\033[2;32mPACKET", len, ethpkt);
+					logpacket("\033[0;31mPACKET", len, ethpkt);
 				}
             }
         }
