@@ -371,7 +371,7 @@ int main(int argc, char *argv[])
 #endif
 
 					sendto(udp_fd, packet_data, hdr->bh_caplen, 0, (struct sockaddr*)&mame_addr, mame_addr_len);
-					logpacket("\033[0;32mPACKET", len, ethpkt);
+					logpacket("\033[1;32mPACKET", len, ethpkt);
 
 					for(int i=0; i<len; i++)
 					{
@@ -386,7 +386,7 @@ int main(int argc, char *argv[])
 					ethpkt->ipv4.srcip != forwardingip)
 				{
 					sendto(udp_fd, packet_data, hdr->bh_caplen, 0, (struct sockaddr*)&mame_addr, mame_addr_len);
-					logpacket("\033[1;32;40mBROADC", len, ethpkt);
+					logpacket("\033[1;32;40mBRCAST", len, ethpkt);
 
 					for(int i=0; i<len; i++)
 					{
