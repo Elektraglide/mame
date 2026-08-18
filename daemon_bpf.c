@@ -297,8 +297,7 @@ int main(int argc, char *argv[])
         if (FD_ISSET(udp_fd, &read_fds)) {
             int len = recvfrom(udp_fd, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&mame_addr, &mame_addr_len);
             if (len > 0) {
-                write(bpf_fd, buffer, len);
-                
+            
                 struct eth2 *ethpkt = (struct eth2 *)buffer;
 
                 // keep MAC that forwarded this packet so we can reroute any reply
@@ -310,8 +309,12 @@ int main(int argc, char *argv[])
                 forwardingmac[5] = ethpkt->srcmac[5];
                 forwardingip = ethpkt->ipv4.srcip;
                 
+                ethpkt->ipv4.srcip = htonl(0xc0a801b9);
+                
                 logpacket("WRITE\033[7m", len, ethpkt);
                 
+                write(bpf_fd, buffer, len);
+
                 for(int i=0; i<len; i++)
                 {
 					printf("%2.2x ", buffer[i]);
