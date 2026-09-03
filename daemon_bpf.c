@@ -104,10 +104,12 @@ int open_bpf_device(const char *iface_name, uint8_t *hostmac) {
 		{ BPF_LD + BPF_H + BPF_ABS, 0, 0, 12 },				// Ethernet Type (offset 12)
 		{ BPF_JMP + BPF_JEQ + BPF_K, 0, 1, 0x0800 },		// is type 0x0800 (IPv4)
 		{ BPF_RET + BPF_K, 0, 0, 65535 },
+		{ BPF_JMP + BPF_JEQ + BPF_K, 0, 1, 0x0806 },		// is type 0x0806 (ARP)
+		{ BPF_RET + BPF_K, 0, 0, 65535 },
 		{ BPF_RET + BPF_K, 0, 0, 0 }
 	};
 	
-	struct bpf_program filter = { 4, insnsIPV4 };
+	struct bpf_program filter = { 6, insnsIPV4 };
 	ioctl(bpf_fd, BIOCSETF, &filter);
 
     printf("Successfully bound BPF node to interface: %s\n", iface_name);
