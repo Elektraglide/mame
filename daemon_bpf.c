@@ -54,6 +54,24 @@ struct eth2
 			uint16_t checksum;
 			uint32_t srcip;
 			uint32_t dstip;
+			
+			union
+			{
+				struct
+				{
+					uint16_t srcport;
+					uint16_t dstport;
+					uint16_t len;
+					uint16_t chksum;
+				} udp;
+				struct
+				{
+					uint16_t srcport;
+					uint16_t dstport;
+					uint16_t sequence;
+					uint16_t ack;
+				} tcp;
+			};
 		} ipv4;
 	};
 };
@@ -311,7 +329,7 @@ int main(int argc, char *argv[])
                 forwardingmac[5] = ethpkt->srcmac[5];
                 forwardingip = ethpkt->ipv4.srcip;
                 
-                ethpkt->ipv4.srcip = htonl(0xc0a801b9);
+  //              ethpkt->ipv4.srcip = htonl(0xc0a801b9);
                 
                 logpacket("WRITE\033[7m", len, ethpkt);
                 
@@ -327,15 +345,28 @@ int main(int argc, char *argv[])
 
         // Path B: Privileged macOS BPF captured an incoming frame -> Forward up to MAME
         if (FD_ISSET(bpf_fd, &read_fds)) {
-            int len = read(bpf_fd, buffer, BUFFER_SIZE);
-            if (len > 0 && mame_addr.sin_port > 0) {
+        
+			int len = read(bpf_fd, buffer, BUFFER_SIZE);
+			struct bpf_hdr *hdr = (struct bpf_hdr *)buffer;
+
+			// NB we may have read >1 packet
+            while ((len > 0) && hdr->bh_hdrlen == 18 && (mame_addr.sin_port > 0))
+            {
+            
+				printf("remain = %d hdrlen = %d caplen = %d\n", len, hdr->bh_hdrlen, hdr->bh_caplen);
+            
                 // BPF packs frames inside a bpf_hdr structure block.
                 // For simplicity here, extract the raw payload offset or forward directly if matching hardware filters.
-                struct bpf_hdr *hdr = (struct bpf_hdr *)buffer;
-                uint8_t *packet_data = buffer + hdr->bh_hdrlen;
-
+                uint8_t *packet_data = (uint8_t *)hdr + hdr->bh_hdrlen;
 				struct eth2 *ethpkt = (struct eth2 *)packet_data;
-				
+
+				// ignore services we know nothing about
+				if (ethpkt->ipv4.proto == 17 && (ethpkt->ipv4.udp.srcport == htons(53) || ethpkt->ipv4.udp.srcport == htons(5353)))
+				{
+					printf("\033[7mPORT:%4d IGNORED ", ntohs(ethpkt->ipv4.udp.srcport));
+					logpacket("\033[0;32mPACKET", len, ethpkt);
+				}
+				else
 				// if dest is this NIC
 				if (ethpkt->destmac[0]==hostmac[0] &&
 					ethpkt->destmac[1]==hostmac[1] &&
@@ -401,7 +432,15 @@ int main(int argc, char *argv[])
 				{
 					logpacket("\033[0;31mPACKET", len, ethpkt);
 				}
+				
+				len -= hdr->bh_hdrlen + hdr->bh_caplen;
+				hdr = (struct bpf_hdr *)((uint8_t *)hdr + hdr->bh_hdrlen + hdr->bh_caplen);
+				
+				if (len)
+					printf("MORE packets STUFF: %d\n", len);
             }
+			printf("***** remain = %d hdrlen = %d caplen = %d\n", len, hdr->bh_hdrlen, hdr->bh_caplen);
+            
         }
     }
 
