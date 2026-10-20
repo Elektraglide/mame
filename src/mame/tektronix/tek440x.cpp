@@ -1663,7 +1663,7 @@ void tek440x_state::tek4404(machine_config &config)
 	m_vm->set_endianness(ENDIANNESS_BIG);
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
 	m_screen->set_raw(25.2_MHz_XTAL, 800, 0, 640, 525, 0, 480); // 31.5 kHz horizontal (guessed), 60 Hz vertical
 	m_screen->set_screen_update(FUNC(tek440x_state::screen_update));
