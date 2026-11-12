@@ -1675,7 +1675,6 @@ void duart_channel::write_chan_reg(int reg, uint8_t data)
 
 void duart_channel::write_MR(uint8_t data)
 {
-	bool const frame_change = (MR_ptr == 0) ? ((MR1 ^ data) & 0x1f) : ((MR2 ^ data) & 0x0f);
 	if (MR_ptr == 0)
 	{
 		MR1 = data;
@@ -1685,8 +1684,7 @@ void duart_channel::write_MR(uint8_t data)
 	{
 		set_MR2(data);
 	}
-	if (frame_change)
-		recalc_framing();
+	recalc_framing();
 	update_interrupts();
 }
 
