@@ -1374,8 +1374,8 @@ void tek440x_state::tek4404(machine_config &config)
 
 	X2210(config, m_novram);
 
-	// primary rs232 connection /dev/comm
-	rs232_port_device &rs232a(RS232_PORT(config, RS232_A_TAG, default_rs232_devices, "terminal"));
+	// primary rs232 connection /dev/comm  (tagging as "terminal" makes mame open double-width window)
+	rs232_port_device &rs232a(RS232_PORT(config, RS232_A_TAG, default_rs232_devices, nullptr));
 	rs232a.rxd_handler().set("duart", FUNC(mc68681_device::rx_a_w));
 	rs232a.cts_handler().set("duart", FUNC(mc68681_device::ip0_w));
 
