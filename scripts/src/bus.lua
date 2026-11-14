@@ -1794,6 +1794,8 @@ if BUSES["CENTRONICS"] then
 		MAME_DIR .. "src/devices/bus/centronics/adaptator.h",
 		MAME_DIR .. "src/devices/bus/centronics/ctronics.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/ctronics.h",
+		MAME_DIR .. "src/devices/bus/centronics/cgp220.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/cgp220.h",
 		MAME_DIR .. "src/devices/bus/centronics/chessmec.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/chessmec.h",
 		MAME_DIR .. "src/devices/bus/centronics/comxpl80.cpp",
@@ -4578,12 +4580,14 @@ end
 
 if BUSES["PC_JOY"] then
 	files {
+		MAME_DIR .. "src/devices/bus/pc_joy/basic_joy.cpp",
+		MAME_DIR .. "src/devices/bus/pc_joy/basic_joy.h",
+		MAME_DIR .. "src/devices/bus/pc_joy/mssw.cpp",
+		MAME_DIR .. "src/devices/bus/pc_joy/mssw.h",
+		MAME_DIR .. "src/devices/bus/pc_joy/options.cpp",
+		MAME_DIR .. "src/devices/bus/pc_joy/options.h",
 		MAME_DIR .. "src/devices/bus/pc_joy/pc_joy.cpp",
 		MAME_DIR .. "src/devices/bus/pc_joy/pc_joy.h",
-		MAME_DIR .. "src/devices/bus/pc_joy/pc_joy_magnum6.cpp",
-		MAME_DIR .. "src/devices/bus/pc_joy/pc_joy_magnum6.h",
-		MAME_DIR .. "src/devices/bus/pc_joy/pc_joy_sw.cpp",
-		MAME_DIR .. "src/devices/bus/pc_joy/pc_joy_sw.h",
 	}
 end
 
@@ -5294,6 +5298,8 @@ if BUSES["RS232"] then
 		MAME_DIR .. "src/devices/bus/rs232/adsp2181ekl.h",
 		MAME_DIR .. "src/devices/bus/rs232/auto3a.cpp",
 		MAME_DIR .. "src/devices/bus/rs232/auto3a.h",
+		MAME_DIR .. "src/devices/bus/rs232/cgp220.cpp",
+		MAME_DIR .. "src/devices/bus/rs232/cgp220.h",
 		MAME_DIR .. "src/devices/bus/rs232/exorterm.cpp",
 		MAME_DIR .. "src/devices/bus/rs232/exorterm.h",
 		MAME_DIR .. "src/devices/bus/rs232/heath_h19.cpp",
@@ -6356,10 +6362,41 @@ end
 
 if BUSES["TRS80M2"] then
 	files {
+		MAME_DIR .. "src/devices/bus/trs80m2/cage.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2/cage.h",
+		MAME_DIR .. "src/devices/bus/trs80m2/fdc.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2/fdc.h",
 		MAME_DIR .. "src/devices/bus/trs80m2/hdc.cpp",
 		MAME_DIR .. "src/devices/bus/trs80m2/hdc.h",
+		MAME_DIR .. "src/devices/bus/trs80m2/hdi.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2/hdi.h",
+		MAME_DIR .. "src/devices/bus/trs80m2/m68k.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2/m68k.h",
+		MAME_DIR .. "src/devices/bus/trs80m2/mem68k.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2/mem68k.h",
+		MAME_DIR .. "src/devices/bus/trs80m2/ram.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2/ram.h",
 		MAME_DIR .. "src/devices/bus/trs80m2/slot.cpp",
 		MAME_DIR .. "src/devices/bus/trs80m2/slot.h",
+		MAME_DIR .. "src/devices/bus/trs80m2/vidkb.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2/vidkb.h",
+	}
+end
+
+
+---------------------------------------------------
+--
+--@src/devices/bus/trs80m2kbd/kbd.h,BUSES["TRS80M2KBD"] = true
+---------------------------------------------------
+
+if BUSES["TRS80M2KBD"] then
+	files {
+		MAME_DIR .. "src/devices/bus/trs80m2kbd/kbd.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2kbd/kbd.h",
+		MAME_DIR .. "src/devices/bus/trs80m2kbd/tandy6k_kbd.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2kbd/tandy6k_kbd.h",
+		MAME_DIR .. "src/devices/bus/trs80m2kbd/trs80m2_kbd.cpp",
+		MAME_DIR .. "src/devices/bus/trs80m2kbd/trs80m2_kbd.h",
 	}
 end
 
