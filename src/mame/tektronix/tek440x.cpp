@@ -918,6 +918,9 @@ u8 tek440x_state::videocntl_r()
 	// SoundRdy
 	ans |= m_soundrdy;
 
+	// SoundRdy
+	ans |= m_soundrdy;
+
 	// page 2.1-92
 	if (m_screen->vblank())
 		ans |= 0x20;
