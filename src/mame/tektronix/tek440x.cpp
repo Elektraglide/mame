@@ -939,6 +939,7 @@ u8 tek440x_state::videocntl_r()
 	// reading out from valid location
 	if ((m_videobase_offset + 23) >= 0)
 	{
+		// not in vblank AND reading data
 		// all the selftests indicate VideoData is expected to toggle fast; presumably at BC/4 as shown on p2.1-85 ??
 		if ((m_screen->vblank() == 0) && (m_screen->hblank() == 0))
 		{
