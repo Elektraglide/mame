@@ -462,7 +462,8 @@ u32 tek440x_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, co
 	u32 invert = BIT(m_videocntl, 4) ? 0 : -1;
 	int pan = (m_videocntl & 15) ^ 15;
 
-	u16 woffset = m_videobase_offset - 0xffe9;  // why 0xffe9 is TL..OS uses same magic number
+	// VadInc increments Vaddr 23 times before first pixel so m_videobase_offset starts at -23 (0xffe9) => we need adjust before using
+	u16 woffset = m_videobase_offset + 23;
 
 	u16 const *video_ram_last = m_vram + 0xffff;
 
@@ -923,10 +924,15 @@ u8 tek440x_state::videocntl_r()
 
 	// page 2.1-92
 	if (m_screen->vblank())
+	{
 		ans |= 0x20;
+	}
 	else
-		ans |= BIT(m_videobase_offset - 0xffe9 + m_screen->hpos() / 16, 4) << 4;
-
+	{
+		// VadInc increments Vaddr 23 times before first pixel so m_videobase_offset starts at -23 (0xffe9)
+		ans |= BIT(m_videobase_offset + 23 + m_screen->hpos() / 16, 4) << 4;
+	}
+	
 	if (m_screen->hblank() == 0)
 		ans |= 0x40;
 
